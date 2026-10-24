@@ -64,6 +64,7 @@ class Side:
         self.stop_reason = None
         self.forecast_sent = False
         self.rescues = 0  # sheets sent to make a valid package standing (no alternative)
+        self.mirror_sent = False  # we sent back one of its alternative packages
         self.kept = 0  # rounds we kept our structure after it put its own terms back
 
 
@@ -258,7 +259,7 @@ class Negotiator(Policy):
             return True
         # one last sheet at our ceiling when its standing sheet does not beat the alternative
         ok, _, _ = gate(self.case, t.standing[1], t.std, self.est(t))
-        if self.rescue_due(t, ok, why):
+        if self.rescue_due(t, ok, why) or self.mirror_pick(t, why) is not None:
             return True
         return (not ok and math.isfinite(self.alt) and not side.mirrored and t.live and t.status == "open"
                 and t.moves_left(self.case) > 0 and why != "pruned")  # fmt: skip
@@ -491,6 +492,8 @@ class Negotiator(Policy):
         side, v = self.sides[t.sid], self.sides[t.sid].view
         self.capture_requests(t)
         why = self.stop(t)
+        if (pick := self.mirror_pick(t, why)) is not None:
+            return self.mirror_move(t, pick, why)
         if why is not None and self.rescue_due(t, gate(self.case, t.standing[1], t.std, self.est(t))[0], why):
             return self.rescue_move(t, why)
         if why is not None:  # only the last sheet at the ceiling gets here
@@ -603,6 +606,43 @@ class Negotiator(Policy):
                   reason=f"ceiling sheet ({why})", points=self.answers(t, [pkgs[0].terms]))  # fmt: skip
         self.attach_proof(t, mv)
         return mv
+
+    def mirror_pick(self, t, why):
+        """Its latest e-mail offered alternative packages next to its standing sheet (real arena:
+        P05, P08, P10, P11, P18 on 24 Oct). When the thread is done and one of them passes the gate
+        and costs us clearly less than its standing sheet, send it back as it is: it can agree to
+        its own package, which then stands. Judged by C, never by price (P10: the cheaper price came
+        with the slower delivery)."""
+        if not flags.on("MIRROR") or why is None or why == "pruned":
+            return None
+        side = self.sides[t.sid]
+        if side.mirror_sent or not t.live or t.moves_left(self.case) <= 0:
+            return None
+        last = next((m for m in reversed(t.messages) if m.get("from") != "buyer"), None)
+        sheets = (last or {}).get("term_sheets") or []
+        if len(sheets) < 2:
+            return None
+        ok, c_st, _ = gate(self.case, t.standing[1], t.std, self.est(t))
+        c_st = c_st if ok else math.inf
+        best = None
+        for sh in sheets[1:]:
+            terms = complete(self.case, sh.get("terms") or {}, t.std)
+            if not terms.get("unit_price"):
+                continue
+            ok_a, c_a, _ = gate(self.case, terms, t.std, self.est(t))
+            if ok_a and c_a < c_st - max(1.0, 0.001 * abs(c_a)) and (best is None or c_a < best[0]):
+                best = (c_a, terms)
+        return best
+
+    def mirror_move(self, t, pick, why):
+        c, terms = pick
+        side = self.sides[t.sid]
+        side.mirror_sent = True
+        reason = f"mirror its own alternative package (C {c:.0f}; {why})"
+        self.log.emit("plan", supplier_id=t.sid, round=t.rounds_used + 1, reason=reason,
+                      sheets=[{"terms": terms, "c": c, "v": value(self.case, terms, side.est)}])  # fmt: skip
+        return Move("send", t.sid, sheets=[terms], claims=[], tone="close", reason=reason,
+                    points=self.answers(t, [terms]), allow_at_standing=True)  # fmt: skip
 
     def rescue_due(self, t, ok, why):
         """No alternative (a walk scores 0) and no standing sheet anywhere passes the gate (e.g. its

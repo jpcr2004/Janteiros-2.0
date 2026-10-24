@@ -55,6 +55,7 @@ class Hidden:
     stubborn: bool  # counters on its own standard terms
     noise: float
     full_cost_share: float  # relationship goals: full cost as a share of its floor price
+    alternatives: bool  # it offers a second package next to its counter (seen in the real arena)
     floor_u: float = math.nan
     standing_u: float = math.nan
     last_ours_u: float | None = None
@@ -76,7 +77,7 @@ def draw(rng, quote, standard):
         ratio=rng.uniform(0.2, 1.0), cap=rng.uniform(0.005, 0.03), decay=rng.uniform(0.4, 0.9),
         patience=rng.uniform(0.08, 0.6), final_round=rng.randint(3, 9), walk_p=rng.uniform(0.0, 0.8),
         claim_bonus=0.0 if rng.random() < 0.3 else rng.uniform(0.0, 0.01), stubborn=rng.random() < 0.3,
-        noise=rng.uniform(0.0, 0.01), full_cost_share=rng.uniform(0.96, 1.0), rng=rng,
+        noise=rng.uniform(0.0, 0.01), full_cost_share=rng.uniform(0.96, 1.0), alternatives=rng.random() < 0.35, rng=rng,
     )  # fmt: skip
     if fam == "impatient":
         h.patience, h.walk_p = rng.uniform(0.03, 0.1), max(h.walk_p, 0.5)
@@ -249,6 +250,21 @@ class Sim3(Sim2):
         words = "This is our final offer." if final else "Our counter-offer follows."
         return self.reply(s, th, h, status, stated, out, words, ["quote.pdf"] if final else [])
 
+    def alternative(self, case, h, stated):
+        """Another package worth the same to it: one non-price field moved to another allowed value."""
+        fields = [f for f in case["negotiable"] if f != "unit_price" and (case.get("term_options") or {}).get(f)]
+        if not fields:
+            return None
+        f = h.rng.choice(fields)
+        opts = [o for o in case["term_options"][f] if o != stated.get(f)]
+        if not opts:
+            return None
+        terms = {**stated, f: h.rng.choice(opts)}
+        if not musts_ok(case, terms, h.standard):
+            return None
+        p = price_at(case, terms, h, utility(case, stated, h))
+        return {**terms, "unit_price": p} if p else None
+
     def terms_moved(self, case, sheet, h):
         prev = h.last_terms or h.quote
         return any(sheet.get(f) != prev.get(f) for f in case["negotiable"] if f != "unit_price")
@@ -260,6 +276,10 @@ class Sim3(Sim2):
     def reply(self, s, th, h, status, stated, out, words, files=()):
         body = f"Dear Sir or Madam,\n\n{words}\n\nKind regards\nSales"
         r = self._mail(s, th, status, stated, body, list(files))
+        if h.alternatives and status in ("open", "final_offer"):
+            alt = self.alternative(s["case"], h, stated)
+            if alt:
+                r["term_sheets"].append({"term_sheet_id": f"{th['offer_id']}-a", "terms": alt})
         r["claim_results"] = out
         r["signals"] = {"reply_delay_days": 2, "validity_days": 30}
         s["trace"].append({"round": th["round"], "actor": f"sup:{th['key']}", "move": {"status": status},

@@ -14,10 +14,11 @@ NAMES = (
     "GENERIC",
     "ROBUST_FC",
     "RESCUE",
+    "MIRROR",
 )
 
 
-DEFAULT_OFF = ("GENERIC",)  # experiments measured worse offline: on only when asked for by name
+DEFAULT_OFF = ("GENERIC", "ROBUST_FC")  # experiments measured worse offline: on only when asked for by name
 
 
 def on(name):
