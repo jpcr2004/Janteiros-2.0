@@ -41,18 +41,23 @@ def safe_terms(case, terms):
     return terms
 
 
-def _supplier_arg(est):
-    """The kit's supplier estimate dict, or None (no relationship charge can be priced)."""
+def _supplier_arg(est, case=None, terms=None):
+    """The kit's supplier estimate dict, or None (no relationship charge can be priced). An `Est`
+    adds what the kit leaves out (overtime, ppm, clause) as the kit's per-unit `extra`."""
     if est is None:
         return None
-    d = est.kit() if hasattr(est, "kit") else est
+    if hasattr(est, "kit_for") and case is not None:
+        d = est.kit_for(case, terms)
+    else:
+        d = est.kit() if hasattr(est, "kit") else est
     return d if d and d.get("full_cost") else None
 
 
 def cost(case, terms, std=None, est=None) -> float:
     """C in EUR, or inf for a sheet the cost function cannot price."""
     try:
-        c = total_cost(case, safe_terms(case, terms), safe_std(case, std), _supplier_arg(est))
+        terms = safe_terms(case, terms)
+        c = total_cost(case, terms, safe_std(case, std), _supplier_arg(est, case, terms))
     except (KeyError, TypeError, ValueError, ZeroDivisionError, AttributeError):
         return math.inf
     return c if isinstance(c, int | float) and math.isfinite(c) else math.inf
@@ -60,7 +65,8 @@ def cost(case, terms, std=None, est=None) -> float:
 
 def breakdown(case, terms, std=None, est=None) -> dict:
     try:
-        return cost_breakdown(case, safe_terms(case, terms), safe_std(case, std), _supplier_arg(est))
+        terms = safe_terms(case, terms)
+        return cost_breakdown(case, terms, safe_std(case, std), _supplier_arg(est, case, terms))
     except (KeyError, TypeError, ValueError, ZeroDivisionError, AttributeError):
         return {}
 
@@ -132,6 +138,16 @@ def price_for_cost(case, terms, std, target_c, est=None, lo=0.01, hi=None):
 
     def c(p):
         return cost(case, at_price(terms, p), std, est)
+
+    if not relationship_goal(case) or _supplier_arg(est, case, at_price(terms, hi)) is None:
+        c1, c2 = c(10.0), c(20.0)  # C is linear in price here
+        slope = (c2 - c1) / 10.0
+        if not (math.isfinite(slope) and slope > 0):
+            return None
+        p = math.floor((10.0 + (target_c - c1) / slope) * 100) / 100
+        while p > 0.01 and not c(p) < target_c:
+            p = round(p - 0.01, 2)
+        return p if p > 0.01 else None
 
     a, b = lo, hi
     for _ in range(80):
