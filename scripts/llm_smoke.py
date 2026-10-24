@@ -1,5 +1,5 @@
 """One writer and one reader call against Claude with a real supplier e-mail: latency, output,
-guard verdict. Needs LLM_API_KEY (or ANTHROPIC_API_KEY) in .env: uv run python scripts/llm_smoke.py"""
+guard verdict. Needs LLM_API_KEY in .env: uv run python scripts/llm_smoke.py"""
 
 import time
 
@@ -19,7 +19,7 @@ BODY = (
     "Faster payment helps our cash flow; that is reflected in the price.\nViele Grüße aus der Gießerei"
 )
 if not client.enabled():
-    raise SystemExit("no LLM key (LLM_API_KEY or ANTHROPIC_API_KEY) or JT_NO_LLM is set")
+    raise SystemExit("no LLM_API_KEY or JT_NO_LLM is set")
 print("model", client.model(), "effort", client.effort())
 t = Thread("sup:70110")
 t.messages = [{"from": "sales@70110", "body": BODY, "status": "open", "term_sheets": []}]

@@ -31,3 +31,13 @@ def test_no_key_no_call(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     assert client.ask_json("writer", "s", "u", {"type": "object"}, 10) is None
     assert client.writer_from_env() is None
+
+
+def test_shell_anthropic_key_is_ignored(monkeypatch):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("JT_NO_LLM", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-not-ours")
+    assert not client.enabled()
+    assert client.writer_from_env() is None and client.reader_from_env() is None
+    monkeypatch.setenv("LLM_API_KEY", "ours")
+    assert client.enabled()

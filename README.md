@@ -11,7 +11,7 @@ uv run arena data --out data   # the data package (and the Sunday release once p
 ```
 
 Environment variables (in `.env` or the shell): `ARENA_URL`, `ARENA_API_KEY`, `ARENA_DATA`,
-`LLM_MODEL` (default `claude-opus-5-5`), `LLM_API_KEY` (or `ANTHROPIC_API_KEY`), `LLM_EFFORT`
+`LLM_MODEL` (default `claude-opus-5-5`), `LLM_API_KEY` (only this one; `ANTHROPIC_API_KEY` is ignored), `LLM_EFFORT`
 (default `low`). Without an LLM key the agent plays with templates.
 
 ## Run

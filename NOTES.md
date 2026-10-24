@@ -56,3 +56,4 @@ repo, uv, hook, guard+test, wrapper, event log, runner, validator, trivial polic
 ## Open
 - LLM writer/reader not measured (no key in .env).
 - Promotion rule fails on arena-sim S02/S03 (kit artifact, see above): humans decide.
+- LLM key: only LLM_API_KEY (from .env or the shell); a shell ANTHROPIC_API_KEY is ignored (it may bill someone else). LLM eval waits for that key.

@@ -13,7 +13,7 @@ STATS: dict = {}  # role -> {"calls", "ok", "fallback", "seconds"}
 
 def enabled():
     return not os.environ.get("JT_NO_LLM") and bool(
-        os.environ.get("LLM_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+        os.environ.get("LLM_API_KEY")
     )
 
 
@@ -27,7 +27,8 @@ def client():
         if _client is None:
             import anthropic
 
-            key = os.environ.get("LLM_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+            # only our own key: an ANTHROPIC_API_KEY in the shell may belong to something else
+            key = os.environ.get("LLM_API_KEY")
             _client = anthropic.Anthropic(api_key=key, max_retries=0, timeout=30.0)
         return _client
 
