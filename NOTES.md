@@ -98,3 +98,11 @@ P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 
   alternative (stress P04 variant: frozen supplier at its quote, true full cost ~0.99 x quote, deal
   237 EUR above the alternative). 0.99 refused good deals (stress -0.03); 0.97 clean on 3 seeds.
   sim2 0.7722 -> 0.7694 (only P04g: thin deal 0.184 -> walk 0.092).
+
+## Lab `testes-consult-lab` (25 Oct, worktree ~/IdeaProjects/Janteiros-2.0-lab) - plan in docs/plano-lab.md
+- Merge of testes-consult (a20e28c) + agente-v2 (235821c). New: RESCUE (never give up without a valid
+  standing package; rescue before the ceiling sheet), MIRROR (send back its own cheaper alternative,
+  by C), sim3 (OOD suppliers, independent judge), tail metrics in jt eval, 4-5 bidder clock test.
+- GENERIC prior and ROBUST_FC measured worse / undecided offline: off unless JT_X_<NAME>=1.
+- Offline (no LLM): arena-sim 0.708, sim2 0.775 (p10 0.373), sim3 v2 0.566 (p10 0.157), = lab base.
+- Final rehearsal 1 on 9d7d6f6: 6/6 deals, 0 timeouts, 0 errors, 0 validator blocks.
