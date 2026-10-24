@@ -107,7 +107,6 @@ def prior(case, sid, opening=None, world_profile=None):
     if "price_frozen" in p.traits:
         p.room, p.ratio = 0.005, 0.05
     if "approval" in p.traits:
-        p.room = min(p.room, 0.04)
         p.patience = 0.25  # Nordmark (pricing committee) walked at a cumulative gap of 19 %
     if "stale_costing" in p.traits:
         p.room += 0.02

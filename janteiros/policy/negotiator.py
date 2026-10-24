@@ -113,15 +113,13 @@ class Negotiator(Policy):
             for s in m.get("term_sheets") or []:
                 terms = s.get("terms") or {}
                 if terms.get("unit_price"):
-                    x = value(self.case, terms, est)
+                    x = value(self.case, terms, est, cash=True)
                     if x == x:
                         vals.append(x)
         if not vals:
             return
-        sust = self.case["buyer"].get("sustainable_margin_pct") or 0
-        # the charge is gentle for the first points below the sustainable margin (g^2/10), so a
-        # low estimate costs little while a high one stops us early (true: 0-10 % under the quote)
-        fc = vals[0] * (1 - (sust + 6) / 100)
+        # full cost against the quote seen on real cases: D01 0.91, P03 0.91, P01 0.94, P02 0.995
+        fc = vals[0] * 0.92
         if side.prior.should_cost:
             fc = min(vals[0] * 0.995, 0.98 * side.prior.should_cost)
         fc = min(fc, min(vals))
@@ -145,8 +143,17 @@ class Negotiator(Policy):
             return None
         import copy
 
+        side = self.sides.get(t.sid)
+        quote_cash = None
+        for m in t.theirs:
+            for sh in m.get("term_sheets") or []:
+                if (sh.get("terms") or {}).get("unit_price"):
+                    quote_cash = value(self.case, sh["terms"], e, cash=True)
+                    break
+            if quote_cash:
+                break
         p = copy.copy(e)
-        p.full_cost = e.full_cost * 1.04
+        p.full_cost = max(e.full_cost * 1.04, 0.95 * quote_cash if quote_cash and side else 0.0)
         return p
 
     def known_id(self, ref):
@@ -204,7 +211,11 @@ class Negotiator(Policy):
             if v.frozen and side.traded:
                 return "frozen after a trade"
             if side.closing and _answered_last(t):
-                return "answered our close-out"
+                still = v.concessions and v.rel(v.concessions[-1]) >= 0.005
+                if still and t.moves_left(self.case) > 1 and v.cum_gap < side.prior.patience * 0.8:
+                    side.closing = False  # it answered with a real step down: keep going (P08 5.47 -> 5.42)
+                else:
+                    return "answered our close-out"
         if t.ours and side.c_min is not None and v.standing_c <= side.c_min * (1 + 0.0005):
             return "its standing sheet is at our C-minimum"
         return None
@@ -250,6 +261,9 @@ class Negotiator(Policy):
         # about 8 % behind that counter lets it give all its caps before the gap closes
         rel = max(0.03, 1.1 * p.room + 0.01, p.first_drop + 0.085)
         rel = min(0.25, rel, p.patience * share)
+        # never above its expected first counter: it would agree at once and freeze (P18 real:
+        # anchor 5.66, first counter 5.70)
+        rel = max(rel, p.first_drop + 0.03)
         return v.quote_v - rel * v.price, f"anchor {rel:.3f} under its quote"
 
     def target_v(self, t):

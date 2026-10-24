@@ -65,3 +65,15 @@ repo, uv, hook, guard+test, wrapper, event log, runner, validator, trivial polic
   with JT_NO_WRITER=1 / JT_NO_READER=1 / JT_NO_LLM=1. The real arena decides.
 - Final rehearsal (real time, arena-sim, 2 waves, all cases parallel): passed twice in a row on
   2018fd2 (6/6 deals each, no timeouts).
+
+## First real practice run (10 hosted cases, acc46bc, LLM on): mean 0.670
+P01 1.000 · P03 0.936 · P04 0.860 · P05 0.834 · P07 0.714 · P10 0.694 · P11 0.710 · P18 0.485 ·
+P08 0.471 · P02 0.000. No timeouts, no crashes, all claims verified. Fixes from `jt report`:
+- P02 = 0: relationship charge 180 498. Our margin estimate counted the copper clause as cash; the
+  arena counts clauses and contract length as security. `value(cash=True)` for the margin.
+- P08/P18: stopped after a close-out while the distributor still conceded 5 %/round: keep going.
+- P18: approval capped room at 4 % (it gave 13 %), and the anchor sat above its first counter
+  (5.66 vs 5.70): no room cap; anchor >= expected first drop + 3 points.
+- Full-cost prior without should-cost 0.92 x quote (real 0.91-0.995); gate also with
+  max(1.04 x fc, 0.95 x quote) (stress found a deal above the alternative otherwise).
+- sim2 after the fixes: 0.7507 (64, no LLM). Not yet re-run on the real arena.

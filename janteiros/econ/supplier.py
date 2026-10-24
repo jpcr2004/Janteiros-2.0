@@ -35,7 +35,8 @@ class Est:
         return d
 
     def kit_for(self, case, terms):
-        """The kit's estimate with our extras for these terms folded into `extra`."""
+        """The kit's estimate with our cash extras for these terms folded into `extra` (overtime,
+        ppm, volume; not the clause or contract length: the arena's margin counts cash only)."""
         d = self.kit()
         if not self.full_cost or not terms or terms.get("unit_price") is None:
             return d
@@ -43,7 +44,7 @@ class Est:
             base = supplier_value(case, safe_terms(case, terms), d)
         except (KeyError, TypeError, ValueError, ZeroDivisionError):
             return d
-        extra = value(case, terms, self) - base
+        extra = value(case, terms, self, cash=True) - base
         if extra == extra and abs(extra) > 1e-9:
             d["extra"] = extra
         return d
@@ -64,8 +65,10 @@ def clause_share(clause, est: Est):
     return max(-CLAUSE_VALUE_MAX, min(CLAUSE_VALUE_MAX, (clause.get("material_share") or 0) * exposed))
 
 
-def value(case, terms, est: Est) -> float:
-    """What `terms` are worth to the supplier per unit."""
+def value(case, terms, est: Est, cash=False) -> float:
+    """What `terms` are worth to the supplier per unit. `cash`: only what the arena counts in the
+    supplier's margin; an index clause or a longer contract is security, not cash (P02 scored 0
+    when we counted its copper clause as margin)."""
     t = safe_terms(case, terms)
     try:
         v = supplier_value(case, t, est.kit())
@@ -73,7 +76,8 @@ def value(case, terms, est: Est) -> float:
         return float("nan")
     full = closing(case, t, est.standard)
     price = full.get("unit_price") or 0.0
-    v += clause_share(full.get("index_clause"), est) * price
+    if not cash:
+        v += clause_share(full.get("index_clause"), est) * price
     lead, quoted = full.get("lead_time_days"), est.lead or est.standard.get("lead_time_days")
     if lead is not None and quoted and lead < quoted:
         v -= est.overtime * price * (quoted - lead)
@@ -84,7 +88,7 @@ def value(case, terms, est: Est) -> float:
     if vol and std_vol and est.volume_value:
         v += est.volume_value * price * (vol - std_vol) / std_vol
     months, std_m = full.get("contract_months"), est.standard.get("contract_months") or 12
-    if months is not None and est.security:
+    if months is not None and est.security and not cash:
         v += est.security * price * (months - std_m) / 12
     return v
 
@@ -102,5 +106,5 @@ def price_for_value(case, terms, est, target):
 def margin(case, terms, est):
     if not est.full_cost:
         return None
-    v = value(case, terms, est)
+    v = value(case, terms, est, cash=True)
     return (v - est.full_cost) / v * 100 if v else None
