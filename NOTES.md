@@ -88,3 +88,9 @@ identical to the cent (suppliers answer identical sheets identically).
   delivery, looser ppm, smaller chargeback), anchor share 0.55 for raw material, keep going after a
   close-out while it concedes >= 0.15 %, no hedge sheet 8 % under the main one.
 - sim2 0.7507 -> 0.7661 (personas now value contract length for raw material too). Stress clean.
+
+## Real practice run 3 (6d6082f, P04 P07 P08 P18)
+P08 0.438 -> 0.626, P18 0.386 -> 0.542 (36 months: first counters 5.52/5.20 vs 5.86/5.90),
+P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 0.776.
+- P18: a held anchor got no move at all (5.20, 5.20, final). Hold only for founders now (it came
+  from P05 Dralveck). sim2 0.7661 -> 0.7722.

@@ -277,7 +277,9 @@ class Negotiator(Policy):
         last = v.last_ours
         gap = v.standing_v - last
         hold_gap = v.rel(v.standing_v - last)
-        if (not side.held and len(v.concessions) == 1 and v.first_drop >= 0.06
+        # only job shops agreed to a held anchor (P05 Dralveck); a distributor answered a held
+        # sheet with no move at all and went final (P18 run 3: 5.20, 5.20, final)
+        if (not side.held and len(v.concessions) == 1 and v.first_drop >= 0.06 and side.prior.owner == "founder"
                 and v.cum_gap + hold_gap < 0.8 * side.prior.patience):  # fmt: skip
             side.held = True
             return last, f"hold the anchor after a deep first drop ({v.first_drop:.3f})"
