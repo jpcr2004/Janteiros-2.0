@@ -21,11 +21,38 @@ def run_path(run_id):
     return p
 
 
+def kind_of(first):
+    """real: the hosted arena; rehearsal: a local final rehearsal; local: a local arena-sim;
+    sim: an offline evaluation (arena-sim + sim2); other: debugging and stress runs."""
+    mode, arena = first.get("mode"), first.get("arena") or ""
+    if mode == "eval":
+        return "sim"
+    if mode in ("play", "run"):
+        if arena.startswith("https://") and "localhost" not in arena:
+            return "real"
+        return "rehearsal" if first.get("set") == "final" else "local"
+    return "other"
+
+
+_CACHE: dict = {}
+
+
 def summary(path):
-    """First and last events of a run, and its counts, without reading it all twice."""
-    first, last, cases, results, n = None, None, set(), 0, 0
+    """A run's summary, recomputed only when its file changed."""
+    st = path.stat()
+    key = (str(path), st.st_size, st.st_mtime)
+    if key not in _CACHE:
+        _CACHE[key] = _summary(path)
+    return _CACHE[key]
+
+
+def _summary(path):
+    """First and last events of a run, its counts and mean score, in one pass."""
+    first, last, cases, scores, deals, n = None, None, set(), [], 0, 0
     with path.open(encoding="utf-8") as f:
         for line in f:
+            if '"kind": "http"' in line:
+                continue
             try:
                 e = json.loads(line)
             except ValueError:
@@ -36,12 +63,15 @@ def summary(path):
             if e.get("case_id"):
                 cases.add(e["case_id"])
             if e.get("kind") == "result":
-                results += 1
+                r = e.get("result") or {}
+                scores.append(r.get("score") or 0.0)
+                deals += bool(r.get("deal"))
     first = first or {}
     return {
         "run_id": path.parent.name, "started": first.get("ts"), "updated": (last or {}).get("ts"),
         "commit": first.get("commit"), "mode": first.get("mode"), "set": first.get("set") or first.get("suite"),
-        "arena": first.get("arena"), "cases": len(cases), "results": results, "events": n,
+        "arena": first.get("arena"), "kind": kind_of(first), "cases": len(cases), "results": len(scores),
+        "deals": deals, "mean": round(sum(scores) / len(scores), 4) if scores else None, "events": n,
     }  # fmt: skip
 
 

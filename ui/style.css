@@ -90,3 +90,10 @@ svg .grid line { stroke: var(--line); }
 .reasons li { margin: 3px 0; font-size: 12.5px; }
 .score-big { font-size: 34px; font-weight: 800; font-family: var(--mono); }
 @media (max-width: 640px) { main { padding: 12px 16px 60px; } .thread-cols { grid-template-columns: 1fr; } nav a { padding: 6px 6px; } }
+
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin: 14px 0; }
+.kpis .k, .card .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.help { margin: 10px 0 4px; } .help summary { cursor: pointer; } .help li { margin: 4px 0; }
+.scorecell { display: flex; align-items: center; gap: 8px; } .scorecell .bar { width: 70px; margin: 0; display: inline-block; }
+table.cases td { vertical-align: top; }
+details > summary { cursor: pointer; list-style: none; } details > summary::-webkit-details-marker { display: none; }

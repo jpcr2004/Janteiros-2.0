@@ -102,52 +102,103 @@ function nav(which) { document.querySelectorAll("nav a").forEach((a) => a.classL
 
 function clockLeft(lastReply, now) { if (!lastReply) return null; return 60 - (now - lastReply) / 1000; }
 
+const KIND = {
+  real: ["REAL ARENA", "on", "Jogado na arena.tacto.ai contra os fornecedores reais. Estes scores são os que contam."],
+  rehearsal: ["ENSAIO DA FINAL", "warn", "Ensaio da Live Final num arena-sim local (fornecedor roteirizado): testa as ondas e os relógios, não a tática."],
+  local: ["ARENA-SIM LOCAL", "", "Jogado num arena-sim local (um fornecedor roteirizado): testa a mecânica, não a tática."],
+  sim: ["SIMULADOR", "", "Avaliação offline: arena-sim S01-S03 e sim2 (nosso simulador calibrado em sessões reais). Serve para comparar versões, não é score real."],
+  other: ["OUTRO", "", "Rodada de debug ou de stress."],
+};
+const badge = (k) => `<span class="pill ${KIND[k] ? KIND[k][1] : ""}">${KIND[k] ? KIND[k][0] : esc(k)}</span>`;
+
+const HELP = `<details class="card help"><summary><b>Como ler</b> (o que cada número significa)</summary>
+<ul>
+<li><b>Score</b> (0 a 1): a nota da arena para o caso. 1 = fechamos o melhor acordo possível; 0 = não melhoramos nada sobre a cotação inicial (ou quebramos um must-have). A nota de uma rodada é a média dos casos.</li>
+<li><b>C</b> = custo total do acordo para a Hollerau em EUR, no horizonte do caso (preço × volume, mais juros do prazo de pagamento, frete, atrasos, qualidade, cláusula de índice, necessidade não coberta e, nas metas <i>stabilise/secure_supply</i>, uma penalidade se apertamos a margem do fornecedor demais). Menor é melhor.</li>
+<li><b>C abertura</b> (C_open): o custo da cotação inicial mais barata. É o ponto zero da nota.</li>
+<li><b>C melhor</b> (C_best): o melhor acordo que algum fornecedor aceitaria (ou a alternativa, se for melhor). É a nota 1.</li>
+<li><b>Score = (C abertura − C acordo) / (C abertura − C melhor)</b>, ou seja, quanto do ganho possível capturamos.</li>
+<li><b>Economia</b>: C abertura − C acordo, em EUR. <b>Na mesa</b>: C acordo − C melhor, o que ainda dava para ganhar.</li>
+<li><b>Status do fornecedor</b>: <i>open</i> negociando · <i>agreed</i> aceitou a nossa proposta · <i>final_offer</i> última oferta · <i>walked_away</i> desistiu · <i>pruned</i> paramos de negociar com ele (outro era melhor).</li>
+<li><b>Leaderboard da arena</b>: mostra o <i>melhor</i> score de cada caso entre todas as sessões do time, por isso costuma ser maior que a média de uma rodada.</li>
+</ul></details>`;
+
+function caseRows(cases) {
+  return [...cases].sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }));
+}
+
+function priceInfo(c) {
+  const r = c.result || {};
+  const sup = r.supplier_id;
+  const t = sup ? c.threads.get(sup) : [...c.threads.values()][0];
+  const quote = t && t.quote && t.quote.terms ? t.quote.terms.unit_price : null;
+  const deal = r.terms ? r.terms.unit_price : null;
+  return { quote, deal, delta: quote && deal ? deal / quote - 1 : null };
+}
+
 function boardView() {
-  nav("board");
-  const cases = [...derive(S.events).values()];
-  const now = Date.now();
+  nav("runs");
+  const cases = caseRows(derive(S.events).values());
   const run = S.runs.find((r) => r.run_id === S.run) || {};
-  const waves = {};
-  for (const c of cases) (waves[c.wave || "—"] = waves[c.wave || "—"] || []).push(c);
-  const scores = cases.filter((c) => c.result).map((c) => c.result.score || 0);
-  let html = `<h1>${esc(run.mode || "run")} ${esc(run.set || "")} <span class="sub">${esc(S.run)}</span></h1>
-    <div class="sub">commit ${esc(run.commit)} · ${cases.length} cases · ${scores.length} ended · mean score ${scores.length ? num(scores.reduce((a, b) => a + b, 0) / scores.length, 3) : "–"} · <a href="#/runs">other runs</a></div>`;
-  for (const [w, cs] of Object.entries(waves)) {
-    const dl = cs.find((c) => c.deadline);
-    const left = dl ? Math.max(0, (dl.deadline - now) / 1000) : null;
-    html += `<h2>${w === "—" ? "Cases" : `Wave ${esc(w)} · ${esc(cs[0].theme || "")}`} ${left != null && !cs.every((c) => c.result) ? `<span class="pill ${left < 120 ? "bad" : "warn"}">${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")} left</span>` : ""}</h2><div class="grid">`;
-    for (const c of cs) html += caseCard(c, now);
-    html += `</div>`;
+  const now = Date.now();
+  const ended = cases.filter((c) => c.result);
+  const live = cases.filter((c) => !c.result);
+  const mean = ended.length ? ended.reduce((a, c) => a + (c.result.score || 0), 0) / ended.length : null;
+  const saved = ended.reduce((a, c) => a + (c.c_open != null && c.result.c_deal != null ? c.c_open - c.result.c_deal : 0), 0);
+  let html = `<div class="sub"><a href="#/">← todas as rodadas</a></div>
+    <h1>${badge(run.kind)} ${esc(run.set || run.mode || "")} <span class="sub">${esc(S.run)}</span></h1>
+    <div class="sub">${esc(KIND[run.kind] ? KIND[run.kind][2] : "")}</div>
+    <div class="kpis">
+      <div class="card"><div class="k">score médio</div><div class="score-big">${num(mean, 3)}</div><div class="sub">${ended.length} de ${cases.length} casos terminados</div></div>
+      <div class="card"><div class="k">acordos</div><div class="score-big">${ended.filter((c) => c.result.deal).length}</div><div class="sub">sem acordo: ${ended.filter((c) => !c.result.deal).length}</div></div>
+      <div class="card"><div class="k">economia total vs cotações</div><div class="score-big">${eur(saved)}</div><div class="sub">EUR no horizonte dos casos</div></div>
+      <div class="card"><div class="k">commit</div><div class="score-big" style="font-size:20px">${esc(run.commit)}</div><div class="sub">${esc((run.started || "").slice(0, 16).replace("T", " "))} UTC</div></div>
+    </div>${HELP}`;
+  if (live.length) {
+    html += `<h2>Em andamento</h2><div class="grid">${live.map((c) => caseCard(c, now)).join("")}</div>`;
   }
-  if (!cases.length) html += `<div class="empty">No case events in this run yet. Waiting…</div>`;
+  if (ended.length) {
+    html += `<h2>Casos (${ended.length})</h2><table class="cases"><tr><th>caso</th><th>tipo · meta</th><th>score</th><th>resultado</th>
+      <th class="num">preço cotação → acordo</th><th class="num">economia EUR</th><th class="num">na mesa EUR</th><th class="num">msgs</th><th>alertas</th></tr>`;
+    for (const c of ended) {
+      const r = c.result, p = priceInfo(c);
+      const left = r.c_deal != null && c.c_best != null ? r.c_deal - c.c_best : null;
+      const sv = c.c_open != null && r.c_deal != null ? c.c_open - r.c_deal : null;
+      const sc = r.score || 0;
+      html += `<tr class="click" data-href="#/run/${encodeURIComponent(S.run)}/case/${encodeURIComponent(c.id)}">
+        <td><b>${esc(c.id.replace("case:", ""))}</b><div class="sub">${esc((c.title || "").slice(0, 60))}</div></td>
+        <td>${esc(c.type || "")}<div class="sub">${esc(c.goal || "")} · ${c.threads.size} forn.</div></td>
+        <td><div class="scorecell"><b>${num(sc, 3)}</b><span class="bar"><i style="width:${Math.max(0, Math.min(100, 100 * sc))}%;background:${sc >= 0.8 ? "var(--good)" : sc >= 0.6 ? "var(--warn)" : "var(--bad)"}"></i></span></div></td>
+        <td>${r.deal ? `<span class="tag deal">acordo</span><div class="sub">${esc(r.supplier_id)}</div>` : `<span class="tag nodeal">sem acordo</span><div class="sub">${esc(r.end_reason || "")}</div>`}</td>
+        <td class="num">${num(p.quote)} → ${num(p.deal)}<div class="sub">${p.delta == null ? "" : (p.delta > 0 ? "+" : "") + pct(p.delta)}</div></td>
+        <td class="num">${eur(sv)}</td><td class="num">${eur(left)}</td><td class="num">${c.rounds}</td>
+        <td>${c.alerts.map(([k, v]) => `<span class="pill ${k}">${esc(v)}</span>`).join(" ")}</td></tr>`;
+    }
+    html += `</table><div class="sub" style="margin-top:6px">Clique num caso para ver a negociação mensagem a mensagem.</div>`;
+  }
+  if (!cases.length) html += `<div class="empty">Nenhum caso ainda nesta rodada. Aguardando…</div>`;
   return html;
 }
 
 function caseCard(c, now) {
-  const r = c.result;
-  const share = r && c.c_open && c.c_best != null && c.c_open > c.c_best ? (c.c_open - (r.c_deal ?? c.c_open)) / (c.c_open - c.c_best) : null;
-  const best = c.bestStanding;
-  const saving = c.c_open && best ? (c.c_open - best) / c.c_open : null;
+  const p = priceInfo(c);
   let thr = "";
   for (const t of c.threads.values()) {
-    const left = r ? null : clockLeft(t.lastReply, now);
+    const left = clockLeft(t.lastReply, now);
+    const last = t.theirs.length ? t.theirs[t.theirs.length - 1] : null;
     thr += `<div class="thr"><span>${esc(t.sid)} ${t.pruned ? '<span class="tag">pruned</span>' : ""}</span><span class="tag ${esc(t.status)}">${esc(t.status)}</span>
-      <span class="clock ${left != null && left < 15 ? "low" : ""}">${left != null && !t.stop ? Math.max(0, left).toFixed(0) + "s" : ""}</span></div>`;
+      <span class="clock ${left != null && left < 15 ? "low" : ""}" title="segundos até o relógio de 60 s deste fornecedor estourar">${left != null && !t.stop ? Math.max(0, left).toFixed(0) + "s" : ""}</span></div>`;
+    void last;
   }
+  const dl = c.deadline ? Math.max(0, (c.deadline - now) / 1000) : null;
   return `<a class="card link" href="#/run/${encodeURIComponent(S.run)}/case/${encodeURIComponent(c.id)}">
-    <div class="head"><span class="title">${esc(c.id.replace("case:", ""))} · ${esc(c.title || "")}</span>
-      ${r ? `<span class="tag ${r.deal ? "deal" : "nodeal"}">${r.deal ? "deal" : "no deal"}</span>` : '<span class="tag open">live</span>'}</div>
-    <div class="sub">${esc(c.type || "")} · ${esc(c.goal || "")} · ${c.threads.size} bidder${c.threads.size === 1 ? "" : "s"} · ${c.rounds} msgs</div>
-    <div class="kv">
-      <div><div class="k">score</div><div class="v">${r ? num(r.score, 3) : "–"}</div></div>
-      <div><div class="k">C open</div><div class="v">${eur(c.c_open)}</div></div>
-      <div><div class="k">best standing</div><div class="v">${eur(best)}</div></div>
-      <div><div class="k">${r ? "C deal" : "saving"}</div><div class="v">${r ? eur(r.c_deal) : pct(saving)}</div></div>
-    </div>
-    <div class="bar"><i style="width:${Math.max(0, Math.min(100, 100 * (share ?? (r ? r.score : 0))))}%"></i></div>
+    <div class="head"><span class="title">${esc(c.id.replace("case:", ""))} · ${esc(c.title || "")}</span><span class="tag open">ao vivo</span></div>
+    <div class="sub">${esc(c.type || "")} · ${esc(c.goal || "")} · ${c.rounds} msgs enviadas${dl != null ? ` · onda ${esc(c.wave)}: ${Math.floor(dl / 60)}:${String(Math.floor(dl % 60)).padStart(2, "0")} restantes` : ""}</div>
+    <div class="kv"><div><div class="k">cotação</div><div class="v">${num(p.quote)}</div></div>
+      <div><div class="k">melhor oferta agora (C)</div><div class="v">${eur(c.bestStanding)}</div></div>
+      <div><div class="k">C abertura</div><div class="v">${eur(c.c_open)}</div></div></div>
     <div class="threads">${thr}</div>
-    <div class="alerts">${c.alerts.map(([k, v]) => `<span class="pill ${k}">${esc(v)}</span>`).join("")}</div>
-  </a>`;
+    <div class="alerts">${c.alerts.map(([k, v]) => `<span class="pill ${k}">${esc(v)}</span>`).join("")}</div></a>`;
 }
 
 function chart(t, c, w = 560, h = 210) {
@@ -212,7 +263,7 @@ function waterfall(b, w = 560, h = 220) {
 }
 
 function caseView(caseId) {
-  nav("board");
+  nav("runs");
   const evs = S.events;
   const caseEvents = evs.filter((e) => e.case_id === caseId);
   const tmin = caseEvents.length ? caseEvents[0].t : 0, tmax = caseEvents.length ? caseEvents[caseEvents.length - 1].t : 0;
@@ -290,9 +341,18 @@ function play(times, tmax) {
 
 function runsView() {
   nav("runs");
-  return `<h1>Runs</h1><div class="sub">Every run of the agent (play, run, eval, final). Click to open its board.</div><h2></h2>
-  <table><tr><th>run</th><th>mode</th><th>set</th><th>commit</th><th>started</th><th class="num">cases</th><th class="num">ended</th><th class="num">events</th></tr>
-  ${S.runs.map((r) => `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc(r.run_id)}</td><td>${esc(r.mode)}</td><td>${esc(r.set)}</td><td>${esc(r.commit)}</td><td>${esc((r.started || "").slice(0, 19).replace("T", " "))}</td><td class="num">${r.cases}</td><td class="num">${r.results}</td><td class="num">${r.events}</td></tr>`).join("")}</table>`;
+  const groups = [["real", "Arena real (os scores que contam)"], ["rehearsal", "Ensaios da final"], ["sim", "Simulador (comparar versões)"], ["local", "Arena-sim local"], ["other", "Outros (debug, stress)"]];
+  let html = `<h1>Rodadas</h1><div class="sub">Cada vez que o agente rodou. Clique para abrir. As rodadas na <b>arena real</b> são as que importam; o simulador serve para comparar versões do agente.</div>${HELP}`;
+  for (const [k, title] of groups) {
+    const rs = S.runs.filter((r) => r.kind === k);
+    if (!rs.length) continue;
+    const open = k !== "other";
+    html += `<details ${open ? "open" : ""}><summary><h2 style="display:inline">${badge(k)} ${esc(title)} <span class="sub">(${rs.length})</span></h2></summary>
+    <table><tr><th>quando (UTC)</th><th>conjunto</th><th class="num">casos</th><th class="num">acordos</th><th class="num">score médio</th><th>commit</th><th>id</th></tr>
+    ${rs.map((r) => `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc((r.started || "").slice(0, 16).replace("T", " "))}</td><td>${esc(r.set || r.mode || "")}</td>
+      <td class="num">${r.results}/${r.cases}</td><td class="num">${r.deals}</td><td class="num"><b>${num(r.mean, 3)}</b></td><td>${esc(r.commit)}</td><td class="sub">${esc(r.run_id)}</td></tr>`).join("")}</table></details>`;
+  }
+  return html;
 }
 
 function historyView() {
@@ -327,13 +387,12 @@ async function render() {
   const parts = h.split("/").map(decodeURIComponent);
   const app = $("#app");
   try {
-    if (parts[0] === "runs") { S.runs = await getJSON("/api/runs"); app.innerHTML = runsView(); }
-    else if (parts[0] === "history") { S.history = await getJSON("/api/history"); app.innerHTML = historyView(); }
-    else {
+    if (parts[0] === "history") { S.history = await getJSON("/api/history"); app.innerHTML = historyView(); }
+    else if (parts[0] !== "run") {
+      S.runs = await getJSON("/api/runs"); app.innerHTML = runsView();
+    } else {
       if (!S.runs.length) S.runs = await getJSON("/api/runs");
-      const run = parts[0] === "run" ? parts[1] : S.runs[0] && S.runs[0].run_id;
-      if (!run) { app.innerHTML = `<div class="empty">No runs yet. Play a case: <code>uv run jt play case:S01 --sim</code></div>`; return; }
-      await openRun(run);
+      await openRun(parts[1]);
       app.innerHTML = parts[2] === "case" ? caseView(parts[3]) : boardView();
     }
     app.querySelectorAll("[data-href]").forEach((el) => (el.onclick = () => (location.hash = el.dataset.href)));
@@ -353,6 +412,6 @@ document.addEventListener("keydown", (e) => {
 });
 setInterval(() => {
   const p = location.hash.replace(/^#\/?/, "").split("/");
-  if ((p[0] === "" || (p[0] === "run" && p[2] !== "case")) && S.cursor == null) render();  // board clocks
+  if (p[0] === "run" && p[2] !== "case" && S.cursor == null && S.events.some((e) => e.kind === "case_open") && !document.querySelector("details[open].help")) render();  // board clocks
 }, 1000);
 render();
