@@ -4,7 +4,7 @@ the baseline behaviour (tests/test_golden.py checks that on every recorded real 
 
 import os
 
-NAMES = ("WRITER_GUARD", "HONEST_ANSWERS", "READER_NO_ECON", "FORECAST", "TWINS")
+NAMES = ("WRITER_GUARD", "HONEST_ANSWERS", "READER_NO_ECON", "FORECAST", "TWINS", "PROBE")
 
 
 def on(name):

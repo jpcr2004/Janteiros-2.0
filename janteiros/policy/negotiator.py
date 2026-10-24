@@ -22,7 +22,7 @@ from .. import flags
 from ..econ.cost import c_alt, cost, gate, musts_ok, price_for_cost, price_slope, relationship_goal
 from ..econ.optimise import Package, at_cost, at_value, relationship_optimum
 from ..econ.supplier import make_est, value
-from ..econ.terms import complete, same_terms
+from ..econ.terms import allowed, complete, same_terms
 from ..model.profile import prior
 from ..model.supplier import next_concession, view
 from .base import Move, Policy
@@ -411,7 +411,45 @@ class Negotiator(Policy):
                 sane = terms["unit_price"] >= 0.92 * best.price
                 if c <= best.c + 0.5 and sane and musts_ok(self.case, terms, t.std):
                     out.append(Package(terms, c, value(self.case, terms, side.est)))
+        if flags.on("PROBE") and len(out) < 3:
+            k = self.probe(t, best, close)
+            if k is not None and not any(same_terms(k.terms, o.terms, self.case) for o in out):
+                out.append(k)
         return out[:3]
+
+    def probe(self, t, best, close=False):
+        """Round 1: the main sheet with one field moved to the value best for us, priced to cost us
+        the same. Our value model says the supplier would not take it; if that model is wrong (P10
+        real: the best deal had lead time 42 where our capacity model kept 56), its answer shows it.
+        Only a field worth at least 1 % of our C."""
+        side = self.sides[t.sid]
+        best_gain, pick = 0.0, None
+        for f in self.case["negotiable"]:
+            if f in ("unit_price", "volume_per_year", "contract_months", "index_clause"):
+                continue  # security and risk terms: our model of those is not a cash guess
+            for opt in allowed(self.case, f, t.std):
+                if opt == best.terms.get(f):
+                    continue
+                terms = {**best.terms, f: opt}
+                if not musts_ok(self.case, terms, t.std):
+                    continue
+                gain = best.c - cost(self.case, terms, t.std, self.est(t))
+                # equal gain: the smaller step from our main sheet (lead 42, not 35, when we need 42)
+                near = isinstance(opt, int | float) and pick is not None and pick.get(f) is not None \
+                    and abs(opt - best.terms[f]) < abs(pick[f] - best.terms[f])
+                if gain > best_gain + 1.0 or (abs(gain - best_gain) <= 1.0 and near):
+                    best_gain, pick = gain, terms
+        if pick is None or best_gain < 0.01 * abs(best.c):
+            return None
+        p = price_for_cost(self.case, pick, t.std, best.c, self.est(t))
+        if not p:
+            return None
+        terms = {**pick, "unit_price": p}
+        terms = terms if close else self.under_next(t, Package(terms, 0.0, 0.0)).terms
+        c = cost(self.case, terms, t.std, self.est(t))
+        if c > best.c + 0.5 or terms["unit_price"] > 1.08 * best.price:
+            return None
+        return Package(terms, c, value(self.case, terms, side.est))
 
     def next_move(self, t, budget):
         self.refresh(t)
