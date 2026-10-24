@@ -4,6 +4,13 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const eur = (x) => (x == null || !isFinite(x) ? "–" : Math.round(x).toLocaleString("en-US").replace(/,/g, " "));
 const num = (x, d = 2) => (x == null || !isFinite(x) ? "–" : Number(x).toFixed(d));
 const pct = (x, d = 1) => (x == null || !isFinite(x) ? "–" : (100 * x).toFixed(d) + "%");
+// timestamps are stored in UTC: show them in this computer's local time
+const when = (ts) => {
+  const d = ts ? new Date(ts) : null;
+  if (!d || isNaN(d)) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 const COMPONENTS = ["price", "uncovered_need", "fallback_risk", "payment_terms", "freight", "late_delivery", "quality", "tooling", "index_clause", "index_risk", "relationship"];
 
 const S = { runs: [], run: null, events: [], history: [], es: null, offset: 0, cursor: null, playing: false, speed: 4, timer: null };
@@ -152,7 +159,7 @@ function boardView() {
       <div class="card"><div class="k">score médio</div><div class="score-big">${num(mean, 3)}</div><div class="sub">${ended.length} de ${cases.length} casos terminados</div></div>
       <div class="card"><div class="k">acordos</div><div class="score-big">${ended.filter((c) => c.result.deal).length}</div><div class="sub">sem acordo: ${ended.filter((c) => !c.result.deal).length}</div></div>
       <div class="card"><div class="k">economia total vs cotações</div><div class="score-big">${eur(saved)}</div><div class="sub">EUR no horizonte dos casos</div></div>
-      <div class="card"><div class="k">commit</div><div class="score-big" style="font-size:20px">${esc(run.commit)}</div><div class="sub">${esc((run.started || "").slice(0, 16).replace("T", " "))} UTC</div></div>
+      <div class="card"><div class="k">commit</div><div class="score-big" style="font-size:20px">${esc(run.commit)}</div><div class="sub">${esc(when(run.started))}</div></div>
     </div>${HELP}`;
   if (live.length) {
     html += `<h2>Em andamento</h2><div class="grid">${live.map((c) => caseCard(c, now)).join("")}</div>`;
@@ -353,11 +360,11 @@ function arenaView() {
   const bestMean = cases.length ? cases.reduce((a, c) => a + best[c].score, 0) / cases.length : null;
   const last = real[0];
   html += `<div class="kpis">
-    <div class="card"><div class="k">última rodada</div><div class="score-big">${num(last.mean, 3)}</div><div class="sub">${esc((last.started || "").slice(0, 16).replace("T", " "))} UTC · ${last.results} casos · ${esc(last.commit)}</div></div>
+    <div class="card"><div class="k">última rodada</div><div class="score-big">${num(last.mean, 3)}</div><div class="sub">${esc(when(last.started))} · ${last.results} casos · ${esc(last.commit)}</div></div>
     <div class="card"><div class="k">nosso melhor por caso</div><div class="score-big">${num(bestMean, 3)}</div><div class="sub">média do melhor score de cada caso nas rodadas abaixo (como o leaderboard conta, só que só com as nossas rodadas)</div></div>
     <div class="card"><div class="k">rodadas na arena</div><div class="score-big">${real.length}</div><div class="sub">${real.reduce((a, r) => a + r.results, 0)} sessões</div></div>
   </div>`;
-  html += `<h2>Histórico das rodadas</h2><table><tr><th>quando (UTC)</th><th>conjunto</th><th class="num">casos</th><th class="num">acordos</th><th class="num">score médio</th><th class="num">Δ vs anterior</th><th>versão</th></tr>`;
+  html += `<h2>Histórico das rodadas</h2><table><tr><th>quando</th><th>conjunto</th><th class="num">casos</th><th class="num">acordos</th><th class="num">score médio</th><th class="num">Δ vs anterior</th><th>versão</th></tr>`;
   real.forEach((r, k) => {
     const prev = real[k + 1];
     // compare on the cases both runs played
@@ -366,12 +373,12 @@ function arenaView() {
       const common = Object.keys(r.by_case || {}).filter((c) => prev.by_case && prev.by_case[c]);
       if (common.length) d = common.reduce((a, c) => a + r.by_case[c].score - prev.by_case[c].score, 0) / common.length;
     }
-    html += `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc((r.started || "").slice(0, 16).replace("T", " "))}</td><td>${esc(r.set || "")}</td><td class="num">${r.results}</td><td class="num">${r.deals}</td>
+    html += `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc(when(r.started))}</td><td>${esc(r.set || "")}</td><td class="num">${r.results}</td><td class="num">${r.deals}</td>
       <td class="num"><b>${num(r.mean, 3)}</b></td><td class="num ${d > 0.005 ? "up" : d < -0.005 ? "down" : ""}">${d == null ? "" : (d > 0 ? "+" : "") + num(d, 3)}</td><td>${esc(r.commit)}</td></tr>`;
   });
   html += `</table><div class="sub" style="margin-top:6px">Δ compara só os casos que as duas rodadas jogaram.</div>`;
   const cols = real.slice(0, 8);
-  html += `<h2>Score por caso, rodada a rodada</h2><table class="matrix"><tr><th>caso</th>${cols.map((r) => `<th class="num">${esc((r.started || "").slice(5, 16).replace("T", " "))}<div class="sub">${esc(r.commit)}</div></th>`).join("")}<th class="num">melhor</th></tr>`;
+  html += `<h2>Score por caso, rodada a rodada</h2><table class="matrix"><tr><th>caso</th>${cols.map((r) => `<th class="num">${esc(when(r.started))}<div class="sub">${esc(r.commit)}</div></th>`).join("")}<th class="num">melhor</th></tr>`;
   for (const c of cases) {
     html += `<tr><td><b>${esc(c.replace("case:", ""))}</b></td>${cols.map((r) => {
       const v = (r.by_case || {})[c];
@@ -390,8 +397,8 @@ function runsView() {
     const rs = S.runs.filter((r) => r.kind === k);
     if (!rs.length) continue;
     html += `<details ${k === "real" || k === "rehearsal" ? "open" : ""}><summary><h2 style="display:inline">${badge(k)} ${esc(title)} <span class="sub">(${rs.length})</span></h2></summary>
-    <table><tr><th>quando (UTC)</th><th>conjunto</th><th class="num">casos</th><th class="num">acordos</th><th class="num">score médio</th><th>commit</th><th>id</th></tr>
-    ${rs.map((r) => `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc((r.started || "").slice(0, 16).replace("T", " "))}</td><td>${esc(r.set || r.mode || "")}</td>
+    <table><tr><th>quando</th><th>conjunto</th><th class="num">casos</th><th class="num">acordos</th><th class="num">score médio</th><th>commit</th><th>id</th></tr>
+    ${rs.map((r) => `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc(when(r.started))}</td><td>${esc(r.set || r.mode || "")}</td>
       <td class="num">${r.results}/${r.cases}</td><td class="num">${r.deals}</td><td class="num"><b>${num(r.mean, 3)}</b></td><td>${esc(r.commit)}</td><td class="sub">${esc(r.run_id)}</td></tr>`).join("")}</table></details>`;
   }
   return html;
@@ -408,7 +415,7 @@ function historyView() {
     rs.forEach((r, i) => {
       const prev = rs.slice(i + 1).find((x) => x.agent === r.agent && x.suites[s].n === r.suites[s].n);
       const d = prev ? r.suites[s].mean - prev.suites[s].mean : null;
-      html += `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc((r.ts || "").slice(5, 16).replace("T", " "))}</td><td>${esc(r.agent)}</td><td>${esc(r.commit)}${r.dirty ? "*" : ""}</td><td>${esc(r.model || "no LLM")}</td>
+      html += `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc(when(r.ts))}</td><td>${esc(r.agent)}</td><td>${esc(r.commit)}${r.dirty ? "*" : ""}</td><td>${esc(r.model || "no LLM")}</td>
         <td class="num">${r.suites[s].n}</td><td class="num"><b>${num(r.suites[s].mean, 4)}</b></td><td class="num ${d > 0 ? "up" : d < 0 ? "down" : ""}">${d == null ? "" : (d > 0 ? "+" : "") + num(d, 4)}</td>
         <td class="num">${r.suites[s].deals}</td><td class="num">${r.suites[s].crashes}</td><td class="num">${r.timeouts ?? ""}</td><td>${esc(r.note)}</td></tr>`;
     });
