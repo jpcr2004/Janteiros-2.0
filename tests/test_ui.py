@@ -34,4 +34,4 @@ def test_ui_never_talks_to_the_arena():
         pathlib.Path(ui_server.__file__).read_text()
         + (pathlib.Path(ui_server.__file__).parents[1] / "ui" / "app.js").read_text()
     )
-    assert "arena.client" not in src and "ArenaClient" not in src and "tacto" not in src.lower()
+    assert "arena.client" not in src and "ArenaClient" not in src and "https://arena" not in src
