@@ -38,11 +38,13 @@ def make_policy(name, case, arena=None):
         from ..policy.trivial import Trivial
 
         return Trivial(case, w)
-    from ..llm.client import writer_from_env
+    from ..llm.client import reader_from_env, writer_from_env
     from ..policy.negotiator import Negotiator
 
     local = arena.local if arena is not None else True
-    return Negotiator(case, w, writer_from_env(), learn=not local)
+    reader = reader_from_env() if not os.environ.get("JT_NO_READER") else None
+    writer = writer_from_env() if not os.environ.get("JT_NO_WRITER") else None
+    return Negotiator(case, w, writer, learn=not local, reader=reader)
 
 
 def play_case(arena, case, log, policy="main", deadline=None, final=False, **clocks):

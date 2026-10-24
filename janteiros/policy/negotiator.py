@@ -502,16 +502,40 @@ class Negotiator(Policy):
         if side is None or not reply:
             return
         body = reply.get("body") or ""
-        if ASK_PAYMENT.search(body) and side.est.rate < 0.2:
+        read = self.read(t, body)
+        asks = set((read or {}).get("asks") or [])
+        if (
+            ASK_PAYMENT.search(body) or "faster_payment" in asks or (read or {}).get("cash_short")
+        ) and side.est.rate < 0.2:
             side.est.rate = round(min(0.2, side.est.rate + 0.03), 4)
-        if ASK_VOLUME.search(body):
+        if ASK_VOLUME.search(body) or "volume_commitment" in asks:
             side.est.volume_value = min(0.04, side.est.volume_value + 0.005)
+        if read and read.get("capacity_tight"):
+            side.est.overtime = max(side.est.overtime, 0.003)
+        if read:
+            side.asks |= asks
         self.refresh(t)
         v = side.view
         self.log.emit("model_update", supplier_id=t.sid, standing_c=v.standing_c, standing_v=v.standing_v,
                       floor_c=self.floor_c(t), ratio=v.ratio, cum_gap=v.cum_gap, status=v.status,
                       rate=side.est.rate, full_cost=side.est.full_cost, c_min=side.c_min,
                       concessions=[round(v.rel(x), 5) for x in v.concessions])  # fmt: skip
+
+    def read(self, t, body):
+        """The reader on a reply, when the clocks allow it (one or two live threads)."""
+        if self.reader is None or not body or sum(o.live for o in self.threads.values()) > 2:
+            return None
+        import time
+
+        t0 = time.monotonic()
+        out = None
+        try:
+            out = self.reader.read(body, timeout=6.0)
+        except Exception:  # noqa: BLE001
+            out = None
+        self.log.emit("llm_call", supplier_id=t.sid, role="reader", seconds=round(time.monotonic() - t0, 2),
+                      fallback=out is None, read=out)  # fmt: skip
+        return out
 
     # -- the close ----------------------------------------------------------------------------
     def close_decision(self, threads, final=False):
