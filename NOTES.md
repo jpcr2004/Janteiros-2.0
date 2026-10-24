@@ -27,3 +27,32 @@ repo, uv, hook, guard+test, wrapper, event log, runner, validator, trivial polic
   forecast, scorecard, order prices, rival offers; 2 in round 1 then 1 per round.
 - arena-sim with world: 0.841 (S01 0.869, S02 0.866, S03 0.788): kit sim ignores payment value, our
   founder profile trades payment for price there for nothing. Not tuned away: sim artifact.
+
+## M5 sim2 (calibrated simulator)
+- Subclass of the kit `Sim`: same API. Personas: first counter independent of anchor; later
+  concession min(0.8 x move, cap 1.6/0.8/0.6/0.4/0.2 %); `agreed` when our sheet reaches its next
+  counter (freezes); patience = cumulative gap budget (0.36-0.40; full capacity 0.18; approval 0.25);
+  walk risk after final; claim effects by kind/owner; distributors refuse no-clause/deadband/long fixed.
+- Calibration: floor fitted so C_best = arena c_best (single supplier), joint factor for RFQ, full
+  cost fitted for relationship goals. C_best within 0.2 % on 11/12 recorded cases (P02 -6 %, its
+  clause valuation). Replay of 102 real sessions: counter price error 1.17 %, first counter 0.98 %.
+- Old agent vs sim2 vs real practice tracks on P05/P07/P08/P10/P11; P03 (0 vs 0.92) and P02 off.
+- Known sim artifacts: kit arena-sim concedes a fixed 2 % per message regardless of our move.
+
+## Planner findings (sim2, measured)
+- Under min(0.8 m, cap) the deal lands at about anchor + gap/1.8: anchor depth sets the outcome;
+  moves of cap/0.8 collect every cap; never retract (a lower offer reads as a step back).
+- Close-out: move m = max(gap/1.8, gap - cap) (gap - cap when it gives more than we move).
+- First counter is not a concession: exclude it from next-counter predictions.
+- Keep our sheet structure when the supplier substitutes terms (distributor clause).
+- Relationship goals: C-min guard in round 1 only when below the quote; gate with a 4 % higher
+  full cost too (stress test found deals above the alternative otherwise).
+
+## Results (no LLM)
+- sim2 full (64): jt 0.754 vs old agent 0.715. arena-sim: jt 0.743 vs old 0.804 (S01 0.869 =,
+  S02 0.761 < 0.851, S03 0.629 < 0.717): the fixed-step kit supplier punishes our sized moves.
+- Stress 350 mutated cases: no crash, no error, no validator block, no bad deal.
+
+## Open
+- LLM writer/reader not measured (no key in .env).
+- Promotion rule fails on arena-sim S02/S03 (kit artifact, see above): humans decide.
