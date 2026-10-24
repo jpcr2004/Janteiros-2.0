@@ -77,7 +77,11 @@ class Policy:
             if ok and self.pessimistic_est(t) is not None:
                 # the relationship charge rides on a full cost we only estimate: the deal must
                 # beat the alternative with a higher one too (a lower margin costs more)
-                ok = gate(self.case, terms, t.std, self.pessimistic_est(t))[0]
+                ok_p, c_p, _ = gate(self.case, terms, t.std, self.pessimistic_est(t))
+                alt = self.c_alt()
+                # and with a cushion: a deal within 0.25 % of the alternative scores ~0 anyway,
+                # while an unseen relationship charge can tip it over (stress: P04 variant +237 EUR)
+                ok = ok_p and (not math.isfinite(alt) or c_p < alt * (1 - 0.0025))
             if ok and (best is None or c < best[0]):
                 best = (c, t)
         return best

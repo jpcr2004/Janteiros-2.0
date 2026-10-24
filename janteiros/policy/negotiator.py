@@ -154,7 +154,7 @@ class Negotiator(Policy):
             if quote_cash:
                 break
         p = copy.copy(e)
-        p.full_cost = max(e.full_cost * 1.04, 0.95 * quote_cash if quote_cash and side else 0.0)
+        p.full_cost = max(e.full_cost * 1.04, 0.97 * quote_cash if quote_cash and side else 0.0)
         return p
 
     def known_id(self, ref):

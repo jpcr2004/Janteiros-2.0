@@ -94,3 +94,7 @@ P08 0.438 -> 0.626, P18 0.386 -> 0.542 (36 months: first counters 5.52/5.20 vs 5
 P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 0.776.
 - P18: a held anchor got no move at all (5.20, 5.20, final). Hold only for founders now (it came
   from P05 Dralveck). sim2 0.7661 -> 0.7722.
+- Relationship gate: pessimistic full cost >= 0.97 x quote and a 0.25 % cushion under the
+  alternative (stress P04 variant: frozen supplier at its quote, true full cost ~0.99 x quote, deal
+  237 EUR above the alternative). 0.99 refused good deals (stress -0.03); 0.97 clean on 3 seeds.
+  sim2 0.7722 -> 0.7694 (only P04g: thin deal 0.184 -> walk 0.092).
