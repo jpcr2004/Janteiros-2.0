@@ -45,7 +45,9 @@ def make_policy(name, case, arena=None):
     local = arena.local if arena is not None else True
     reader = reader_from_env() if not os.environ.get("JT_NO_READER") else None
     # Template wording is the safe default.  The optional paragraph requires an explicit opt-in.
-    writer = writer_from_env() if os.environ.get("JT_LLM_WRITER") == "1" and not os.environ.get("JT_NO_WRITER") else None
+    writer = (
+        writer_from_env() if os.environ.get("JT_LLM_WRITER") == "1" and not os.environ.get("JT_NO_WRITER") else None
+    )
     return Negotiator(case, w, writer, learn=not local, reader=reader)
 
 
@@ -68,7 +70,9 @@ def new_arena(log=None):
 
 
 def play_case_id(case_id, policy="main", log=None):
-    log = log or EventLog(meta={"mode": "play", "case": case_id, "arena": os.environ.get("ARENA_URL"), "flags": flags.state()})
+    log = log or EventLog(
+        meta={"mode": "play", "case": case_id, "arena": os.environ.get("ARENA_URL"), "flags": flags.state()}
+    )
     arena = new_arena(log)
     case = next((c for s in ("sandbox", "practice") for c in _cases(arena, s) if c["case_id"] == case_id), None)
     if case is None:
@@ -84,7 +88,9 @@ def _cases(arena, set_):
 
 
 def run_set(set_, policy="main", parallel=10, waves=5, only=None, log=None):
-    log = log or EventLog(meta={"mode": "run", "set": set_, "arena": os.environ.get("ARENA_URL"), "flags": flags.state()})
+    log = log or EventLog(
+        meta={"mode": "run", "set": set_, "arena": os.environ.get("ARENA_URL"), "flags": flags.state()}
+    )
     arena = new_arena(log)
     if set_ == "final":
         from .waves import play_waves

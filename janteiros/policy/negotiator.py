@@ -448,8 +448,12 @@ class Negotiator(Policy):
                     continue
                 gain = best.c - cost(self.case, terms, t.std, self.est(t))
                 # equal gain: the smaller step from our main sheet (lead 42, not 35, when we need 42)
-                near = isinstance(opt, int | float) and pick is not None and pick.get(f) is not None \
+                near = (
+                    isinstance(opt, int | float)
+                    and pick is not None
+                    and pick.get(f) is not None
                     and abs(opt - best.terms[f]) < abs(pick[f] - best.terms[f])
+                )
                 if gain > best_gain + 1.0 or (abs(gain - best_gain) <= 1.0 and near):
                     best_gain, pick = gain, terms
         if pick is None or best_gain < 0.01 * abs(best.c):
@@ -692,10 +696,14 @@ class Negotiator(Policy):
                 if not snaps:
                     continue
                 last = snaps[-1]
-                lines = sorted(self.world.rows("forecast_lines", fc_id=last["id"]), key=lambda r: str(r.get("target_month")))
+                lines = sorted(
+                    self.world.rows("forecast_lines", fc_id=last["id"]), key=lambda r: str(r.get("target_month"))
+                )
                 uom = last.get("uom") or "pc"
                 for r in lines:
-                    rows.append(f"{part.split(':', 1)[-1]},{last['snapshot_month']},{r['target_month']},{int(float(r['qty']))},{uom}")
+                    rows.append(
+                        f"{part.split(':', 1)[-1]},{last['snapshot_month']},{r['target_month']},{int(float(r['qty']))},{uom}"
+                    )
                 rows.append(f"{part.split(':', 1)[-1]},{last['snapshot_month']},next 12 months,"
                             f"{int(float(last['qty_next_12m']))},{uom}")  # fmt: skip
         except Exception as e:  # noqa: BLE001 - no attachment rather than no message
@@ -723,11 +731,7 @@ class Negotiator(Policy):
         # not mutate rate, volume value, overtime, full cost or another economic parameter.
         if read:
             side.asks |= asks
-            side.observed |= {
-                name
-                for name in ("price_frozen", "cash_short", "capacity_tight")
-                if read.get(name)
-            }
+            side.observed |= {name for name in ("price_frozen", "cash_short", "capacity_tight") if read.get(name)}
         self.capture_requests(t)
         self.refresh(t)
         v = side.view

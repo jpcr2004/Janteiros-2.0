@@ -51,7 +51,7 @@ def main(argv=None):
     e.add_argument("--note", default="")
     e.add_argument("--no-llm", action="store_true")
     e.add_argument("--quick", action="store_true", help="fewer seeds")
-    e.add_argument("--suite", default="all", choices=["all", "kit", "sim2"])
+    e.add_argument("--suite", default="all", choices=["all", "kit", "sim2", "sim3"])
     e.add_argument("--allow-dirty", action="store_true", help="scratch run on uncommitted code")
     e.add_argument("--agent", default="jt", choices=["jt", "old", "naive"])
     rp = sub.add_parser("report", help="diagnose a run (default: the latest play/run)")
@@ -90,7 +90,9 @@ def main(argv=None):
             os.environ["JT_NO_LLM"] = "1"
         from .evaluate import main as run_eval
 
-        return run_eval(note=args.note, quick=args.quick, suite=args.suite, agent=args.agent, allow_dirty=args.allow_dirty)
+        return run_eval(
+            note=args.note, quick=args.quick, suite=args.suite, agent=args.agent, allow_dirty=args.allow_dirty
+        )
     elif args.cmd == "report":
         from .report import main as report
 
