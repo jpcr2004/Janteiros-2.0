@@ -76,7 +76,63 @@ def traits_in(text):
     return {k for k, pat in TRAITS.items() if re.search(pat, text or "", re.I)}
 
 
+# Generic priors (JT_X_GENERIC): starting points from the structure of the case and the data
+# package only, no table read off particular suppliers' records. The online model (its own
+# concessions) takes over from the first counter, so these only set round 1 and the early pace.
+GENERIC_RATE = 0.07  # a supplier's cost of money when the data says nothing
+GENERIC_ROOM = 0.08  # expected total concession, share of quote, before any counter
+COMPETITION_ROOM = 0.04  # added per case with more than one bidder (each knows it may lose)
+GENERIC_PATIENCE = 0.30  # cumulative gap at which a supplier may go final
+GENERIC_OVERTIME = 0.002  # share of price per day faster (capacity_full doubles it)
+GENERIC_SECURITY = 0.01  # share of price per extra contract year: security has some value to anyone
+
+
+def generic_prior(case, opening=None, world_profile=None):
+    """The prior from facts: competition, should-cost against the quote, the price letter against
+    today's price, traits written in its documents or e-mail. The owner type is kept as a fact when
+    the data states it, never guessed from the reply delay, and moves no number on its own."""
+    p = Prior()
+    wp = world_profile or {}
+    p.owner = wp.get("owner_type")
+    p.traits |= set(wp.get("traits") or [])
+    p.should_cost, p.ppm_real = wp.get("should_cost"), wp.get("ppm")
+    p.clause_moves, p.drivers = dict(wp.get("clause_moves") or {}), list(wp.get("drivers") or [])
+    if opening:
+        p.traits |= traits_in(opening.get("body") or "")
+        p.delay = (opening.get("signals") or {}).get("reply_delay_days")
+    p.rate = max(GENERIC_RATE, wp.get("rate") or 0.0)  # a cash discount in its invoices sets a higher one
+    if "cash_need" in p.traits:
+        p.rate += 0.05
+    terms = ((opening or {}).get("term_sheets") or [{}])[0].get("terms") or {}
+    q = terms.get("unit_price")
+    room = GENERIC_ROOM
+    if q and p.should_cost and p.should_cost < q:
+        room = max(0.03, min(0.25, 1 - p.should_cost / q))  # its margin over our bottom-up cost
+    cur = case["buyer"].get("current_unit_price")
+    if case.get("type") == "price_increase" and cur and q and q > cur:
+        room = max(room, 0.5 * (q / cur - 1) / (q / cur))  # half of the asked increase is negotiable
+    if len(case.get("suppliers") or []) > 1:
+        room += COMPETITION_ROOM
+    if "price_frozen" in p.traits:
+        room, p.ratio = 0.01, 0.1
+    p.room = room
+    p.first_drop = 0.3 * room
+    p.patience = GENERIC_PATIENCE
+    p.overtime = GENERIC_OVERTIME * (2 if "capacity_full" in p.traits else 1)
+    p.security = GENERIC_SECURITY
+    if "capacity_full" in p.traits:
+        p.volume_value = -0.01
+    if "spare_capacity" in p.traits:
+        p.volume_value = 0.02
+    p.notes.append("generic prior")
+    return p
+
+
 def prior(case, sid, opening=None, world_profile=None):
+    from ..flags import on
+
+    if on("GENERIC"):
+        return generic_prior(case, opening, world_profile)
     p = Prior()
     wp = world_profile or {}
     p.owner = wp.get("owner_type")

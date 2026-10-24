@@ -63,6 +63,7 @@ class Side:
         self.v_min = None  # relationship goals: its value at our C-minimum on its terms
         self.stop_reason = None
         self.forecast_sent = False
+        self.rescues = 0  # sheets sent to make a valid package standing (no alternative)
         self.kept = 0  # rounds we kept our structure after it put its own terms back
 
 
@@ -134,8 +135,9 @@ class Negotiator(Policy):
                         vals.append(x)
         if not vals:
             return
-        # full cost against the quote seen on real cases: D01 0.91, P03 0.91, P01 0.94, P02 0.995
-        fc = vals[0] * 0.92
+        # full cost against the quote seen on real cases: D01 0.91, P03 0.91, P01 0.94, P02 0.995;
+        # generic: the middle of the plausible band 0.88-0.995 instead of a fit to four cases
+        fc = vals[0] * (0.94 if flags.on("GENERIC") else 0.92)
         if side.prior.should_cost:
             fc = min(vals[0] * 0.995, 0.98 * side.prior.should_cost)
         fc = min(fc, min(vals))
@@ -143,8 +145,11 @@ class Negotiator(Policy):
         _, st = t.standing
         if est.full_cost and st and st.get("unit_price"):
             terms = complete(self.case, st, t.std)
-            p_opt, c_opt = relationship_optimum(self.case, terms, t.std, est, st["unit_price"] * 0.7,
-                                                st["unit_price"])  # fmt: skip
+            lo, hi = st["unit_price"] * 0.7, st["unit_price"]
+            if flags.on("ROBUST_FC"):
+                p_opt, c_opt = robust_relationship_optimum(self.case, terms, t.std, est, lo, hi)
+            else:
+                p_opt, c_opt = relationship_optimum(self.case, terms, t.std, est, lo, hi)
             side.c_min = c_opt
             side.v_min = value(self.case, {**terms, "unit_price": p_opt}, est) if p_opt else None
 
@@ -253,6 +258,8 @@ class Negotiator(Policy):
             return True
         # one last sheet at our ceiling when its standing sheet does not beat the alternative
         ok, _, _ = gate(self.case, t.standing[1], t.std, self.est(t))
+        if self.rescue_due(t, ok, why):
+            return True
         return (not ok and math.isfinite(self.alt) and not side.mirrored and t.live and t.status == "open"
                 and t.moves_left(self.case) > 0 and why != "pruned")  # fmt: skip
 
@@ -267,6 +274,8 @@ class Negotiator(Policy):
     def anchor_v(self, t):
         side, v = self.sides[t.sid], self.sides[t.sid].view
         p = side.prior
+        if flags.on("GENERIC"):
+            return self.generic_anchor_v(t)
         # a deep anchor spends patience (the sum of our gaps) fast; founders in an RFQ drop deep
         # on their first counter, so a held deep anchor works there (P05: 0.828)
         rfq = len(self.case.get("suppliers") or []) > 1
@@ -285,6 +294,15 @@ class Negotiator(Policy):
         rel = max(rel, p.first_drop + 0.03)
         return v.quote_v - rel * v.price, f"anchor {rel:.3f} under its quote"
 
+    def generic_anchor_v(self, t):
+        """Its expected room plus five points under the quote, 8-20 %, at most half its patience;
+        never at or above its expected first counter (it would agree at once and freeze)."""
+        side, v = self.sides[t.sid], self.sides[t.sid].view
+        p = side.prior
+        rel = min(0.20, max(0.08, p.room + 0.05), p.patience * 0.5)
+        rel = max(rel, p.first_drop + 0.03)
+        return v.quote_v - rel * v.price, f"anchor {rel:.3f} under its quote (generic)"
+
     def target_v(self, t):
         side, v = self.sides[t.sid], self.sides[t.sid].view
         if v.last_ours is None:
@@ -295,7 +313,7 @@ class Negotiator(Policy):
         # only job shops agreed to a held anchor (P05 Dralveck); a distributor answered a held
         # sheet with no move at all and went final (P18 run 3: 5.20, 5.20, final)
         if (not side.held and len(v.concessions) == 1 and v.first_drop >= 0.06 and side.prior.owner == "founder"
-                and v.cum_gap + hold_gap < 0.8 * side.prior.patience):  # fmt: skip
+                and v.cum_gap + hold_gap < 0.8 * side.prior.patience and not flags.on("GENERIC")):  # fmt: skip
             side.held = True
             return last, f"hold the anchor after a deep first drop ({v.first_drop:.3f})"
         side.held = True
@@ -473,6 +491,8 @@ class Negotiator(Policy):
         side, v = self.sides[t.sid], self.sides[t.sid].view
         self.capture_requests(t)
         why = self.stop(t)
+        if why is not None and self.rescue_due(t, gate(self.case, t.standing[1], t.std, self.est(t))[0], why):
+            return self.rescue_move(t, why)
         if why is not None:  # only the last sheet at the ceiling gets here
             side.mirrored = True
             return self.ceiling_move(t, why)
@@ -576,6 +596,35 @@ class Negotiator(Policy):
                   reason=f"ceiling sheet ({why})", points=self.answers(t, [pkgs[0].terms]))  # fmt: skip
         self.attach_proof(t, mv)
         return mv
+
+    def rescue_due(self, t, ok, why):
+        """No alternative (a walk scores 0) and no standing sheet anywhere passes the gate (e.g. its
+        standard terms break a must-have): never stop while rounds remain; make a valid package
+        standing first. At most two tries per supplier."""
+        if not flags.on("RESCUE") or ok or why is None or why == "pruned" or math.isfinite(self.alt):
+            return False
+        side = self.sides[t.sid]
+        if side.rescues >= 2 or not t.live or t.status not in ("open", "final_offer") or t.moves_left(self.case) <= 0:
+            return False
+        return self.best_standing(self.threads) is None
+
+    def rescue_move(self, t, why):
+        """A sheet that keeps every must-have and is worth at least its standing sheet to it (so it
+        can agree at once), the cheapest such for us."""
+        side, v = self.sides[t.sid], self.sides[t.sid].view
+        side.rescues += 1
+        target = v.standing_v + 0.001 * v.price
+        pkgs = [k for k in at_value(self.case, t.std, side.est, target)
+                if gate(self.case, k.terms, t.std, self.est(t))[0]]  # fmt: skip
+        if not pkgs:
+            self.log.emit("plan", supplier_id=t.sid, reason=f"rescue: no valid package ({why})")
+            return None
+        k = min(pkgs, key=lambda k: k.c)
+        reason = f"rescue: make a valid package standing ({why})"
+        self.log.emit("plan", supplier_id=t.sid, round=t.rounds_used + 1, reason=reason,
+                      sheets=[{"terms": k.terms, "c": k.c, "v": k.v}])  # fmt: skip
+        return Move("send", t.sid, sheets=[k.terms], claims=[], tone="close", reason=reason,
+                    points=self.answers(t, [k.terms]), allow_at_standing=True)  # fmt: skip
 
     def closing_due(self, t):
         side, v = self.sides[t.sid], self.sides[t.sid].view
@@ -803,6 +852,24 @@ class Negotiator(Policy):
         if not active:
             return Move("walk", live[0].sid if live else None, reason="nothing passes the gate")
         return None
+
+
+def robust_relationship_optimum(case, terms, std, est, lo, hi, spread=0.05, steps=160):
+    """The relationship price that loses least in the worst case when its full cost may be 5 %
+    lower or higher than our estimate: minimax regret over three scenarios, C judged in each."""
+    import copy
+
+    scen = []
+    for f in (1 - spread, 1.0, 1 + spread):
+        e = copy.copy(est)
+        e.full_cost = est.full_cost * f
+        scen.append(e)
+    prices = [round(lo + (hi - lo) * i / steps, 2) for i in range(steps + 1)]
+    table = [[cost(case, {**terms, "unit_price": p}, std, e) for e in scen] for p in prices]
+    best = [min(row[k] for row in table) for k in range(len(scen))]
+    regret = [max(row[k] - best[k] for k in range(len(scen))) for row in table]
+    i = min(range(len(prices)), key=lambda j: (regret[j], table[j][1]))
+    return prices[i], table[i][1]
 
 
 def _answered_last(t):
