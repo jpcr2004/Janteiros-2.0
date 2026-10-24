@@ -50,10 +50,10 @@ def test_writer_guard_off_is_the_baseline(monkeypatch):
     assert ok("We have tried to reflect your wish for faster payment in our proposal below.")
 
 
-def test_writer_may_not_talk_about_terms_we_do_not_change():
-    p = "We hear that faster payment matters to you, and we understand your position on it."
-    assert ok(p)
-    assert not ok(p, unchanged=["payment_days"])
+def test_writer_may_acknowledge_terms_we_do_not_change():
+    p = "We have also noted your question about a binding higher volume, and we hear it."
+    assert ok(p, unchanged=["volume_per_year"])
+    assert not ok("We have reflected your question about volume in our proposal below.", unchanged=["volume_per_year"])
 
 
 def _thread(case_id, body="Here is our offer.", terms=None):

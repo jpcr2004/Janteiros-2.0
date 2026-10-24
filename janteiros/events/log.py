@@ -17,8 +17,9 @@ RUNS = ROOT / "runs"
 def git_commit() -> tuple[str, bool]:
     try:
         sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True)
-        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT,
-                               capture_output=True, text=True)  # fmt: skip
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no", "--", ".", ":!results"],
+                               cwd=ROOT, capture_output=True, text=True)  # fmt: skip
+        # results/ is where measurements land: it does not make the measured code dirty
         return (sha.stdout.strip() or "none"), bool(dirty.stdout.strip())
     except Exception:  # noqa: BLE001
         return "none", False

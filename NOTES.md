@@ -98,3 +98,26 @@ P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 
   alternative (stress P04 variant: frozen supplier at its quote, true full cost ~0.99 x quote, deal
   237 EUR above the alternative). 0.99 refused good deals (stress -0.03); 0.97 clean on 3 seeds.
   sim2 0.7722 -> 0.7694 (only P04g: thin deal 0.184 -> walk 0.092).
+
+## agente-v2 (branch `agente-v2`, from baseline-r4 = main 57683be, real 0.7946)
+Every change has a switch, on by default: `JT_X_<NAME>=0` turns one off, `JT_X_ALL=0` gives exactly
+the baseline (tests/test_golden.py: round 1 on all 15 recorded real openings is byte-identical).
+Runs record the switch state (`flags` in run_start and in history).
+
+| Switch | What | Evidence |
+|---|---|---|
+| WRITER_GUARD | the writer gets the list of what our sheet changes; its paragraph may not accept/agree/commit/confirm/guarantee, promise exclusivity, or say the proposal "reflects/includes/addresses/took into account" anything | P11 r4: "we have tried to reflect your wish for faster payment in our proposal" (payment not negotiable) -> "you said your proposal includes payment terms and I don't see any", price frozen at 45.50 for 2 rounds; P02 same with volume. The guard blocks 28/185 of all real paragraphs sent so far, all of that kind |
+| HONEST_ANSWERS | code answers: "Our need under this contract is N units a year" (not "all placed with you"); a payment ask on a fixed payment term gets "fixed at N days, not part of this negotiation"; "reflected in our proposal" only when our sheet does shorten payment | same P11/P02 traces |
+| FORECAST | when a supplier asks to see the volume data, attach `demand-forecast.csv` once (latest forecast of the case's parts, monthly, from the data package, no IDs) + one fixed sentence | 5/10 r4 cases asked for it (P02, P07, P08, P11, P18); P07: "without this verified data, we can make a further step to 5.38" |
+| READER_NO_ECON | the LLM reader's output is logged and kept as asks, never moves a number (rate, volume value, overtime) | zero measured gain; principle (supplier text should not set economics) |
+| TWINS | in an RFQ, a bidder whose quote is within 3 % of the leader's is not pruned before its 3rd reply nor unless its floor is 1.5 % above the best standing sheet | announced for the final; sim2 twin variants (P05t/P06t/D02t x 5 seeds): prunes 5 -> 0, mean 0.878 -> 0.882, no case worse |
+| PROBE | round 1: an extra sheet with one cash field (lead time, payment, quality) at the value best for us, priced to cost us the same C; plus every sheet must pass the validator's own C test before sending | P10 r4: c_best uses lead 42; our capacity model (overtime 0.45 %/day) kept 56 and paid 33 600 late cost |
+
+Tried and dropped: full cost as 3 scenarios with minimax regret (E5). Against the true full cost of
+D01/P01/P02/P03 its C-minimum price was worse on all four (P02 regret 13 318 vs 2 871 EUR).
+
+Offline checks on 235821c (no LLM): 94 tests; stress 120 x seeds 1-4 clean (0.799 / 0.831 / 0.810 /
+0.753, same as switches off); sim2 70 cases 0.7750, 0 crashes, 0 validator blocks (sim2 judges
+bugs, not tactics). Writer replayed with the real LLM on 29 points of the r4 threads: 28 accepted,
+median 3.2 s, max 6.8 s (with a "no mention of unchanged terms" rule: 9/29, dropped).
+The real arena decides: see docs/plano-experimentos-final.md and the commands in the README.

@@ -79,7 +79,7 @@ FIELD_WORDS = {
 
 
 def ok(paragraph, unchanged=()):
-    """`unchanged`: fields our proposal does not change; the paragraph may not talk about them."""
+    """`unchanged`: fields our proposal does not change (kept for the log; see below)."""
     p = (paragraph or "").strip()
     if not 20 <= len(p) <= 700:
         return False
@@ -90,9 +90,9 @@ def ok(paragraph, unchanged=()):
     if flags.on("WRITER_GUARD"):
         if COMMIT.search(p) or CONTAINS.search(p):
             return False
-        for f in unchanged:
-            if f in FIELD_WORDS and re.search(FIELD_WORDS[f], p, re.I):
-                return False
+        # a field our sheet does not change may be acknowledged ("we noted your question about
+        # volume"), never presented as answered: CONTAINS covers that (blocking every mention
+        # refused 19 of 29 replayed real paragraphs)
     return True
 
 
