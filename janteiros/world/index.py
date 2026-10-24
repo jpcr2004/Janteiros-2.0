@@ -5,6 +5,7 @@ the release), and every citable ID resolves through facts.json + release facts +
 import csv
 import json
 import math
+import os
 import re
 import sqlite3
 import threading
@@ -18,9 +19,14 @@ RELEASE = "release-sunday"
 
 class World:
     def __init__(self, root, release=None):
-        self.root = Path(root).expanduser().resolve()
+        given = Path(root).expanduser().absolute()
+        self.root = given.resolve()
         self.facts = json.loads((self.root / "facts.json").read_text(encoding="utf-8"))
-        cands = [Path(release)] if release else [self.root / RELEASE, self.root.parent / RELEASE]
+        # next to the package as given (data/release-sunday) and next to where a symlink points
+        cands = [Path(release)] if release else [given / RELEASE, given.parent / RELEASE, self.root / RELEASE,
+                                                 self.root.parent / RELEASE]  # fmt: skip
+        if os.environ.get("ARENA_RELEASE"):
+            cands.insert(0, Path(os.environ["ARENA_RELEASE"]).expanduser())
         self.release = next((p.resolve() for p in cands if (p / "facts.json").is_file()), None)
         if self.release:
             self.facts = {**self.facts, **json.loads((self.release / "facts.json").read_text(encoding="utf-8"))}
