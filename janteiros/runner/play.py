@@ -43,7 +43,8 @@ def make_policy(name, case, arena=None):
 
     local = arena.local if arena is not None else True
     reader = reader_from_env() if not os.environ.get("JT_NO_READER") else None
-    writer = writer_from_env() if not os.environ.get("JT_NO_WRITER") else None
+    # Template wording is the safe default.  The optional paragraph requires an explicit opt-in.
+    writer = writer_from_env() if os.environ.get("JT_LLM_WRITER") == "1" and not os.environ.get("JT_NO_WRITER") else None
     return Negotiator(case, w, writer, learn=not local, reader=reader)
 
 

@@ -21,9 +21,12 @@ from ..econ.cost import c_alt, cost, gate, musts_ok, price_for_cost, price_slope
 from ..econ.optimise import Package, at_cost, at_value, relationship_optimum
 from ..econ.supplier import make_est, value
 from ..econ.terms import complete, same_terms
+from ..features import enabled
 from ..model.profile import prior
 from ..model.supplier import next_concession, view
 from .base import Move, Policy
+from .trades import candidates as requested_trade_candidates
+from .trades import signature as trade_signature
 
 ASK_PAYMENT = re.compile(r"faster payment|pay(ing)? earlier|shorter payment|payment (term|target)s? of|cash", re.I)
 ASK_VOLUME = re.compile(r"volume|commit", re.I)
@@ -46,6 +49,7 @@ class Side:
         self.closing = False
         self.mirrored = False
         self.asks = set()
+        self.observed = set()  # qualitative hypotheses only; never numeric economic facts
         self.c_min = None
         self.v_min = None  # relationship goals: its value at our C-minimum on its terms
         self.stop_reason = None
@@ -405,6 +409,7 @@ class Negotiator(Policy):
     def next_move(self, t, budget):
         self.refresh(t)
         side, v = self.sides[t.sid], self.sides[t.sid].view
+        self.capture_requests(t)
         why = self.stop(t)
         if why is not None:  # only the last sheet at the ceiling gets here
             side.mirrored = True
@@ -448,6 +453,35 @@ class Negotiator(Policy):
                 sheets = [k for k in sheets if k.c < self.alt]
                 if not sheets:
                     return None
+        # A request may justify one economically superior alternative.  Requests select fields;
+        # they never alter rate, volume value, overtime or another economic estimate.
+        if enabled("JT_ASK_TRADES") and not close and len(sheets) < 3:
+            seen = {
+                trade_signature(s.get("terms") or {})
+                for m in t.ours
+                for s in m.get("term_sheets") or []
+                if s.get("terms")
+            }
+            extras = requested_trade_candidates(
+                self.case,
+                t.std,
+                side.est,
+                self.est(t),
+                sheets[0].terms,
+                asks=side.asks,
+                traits=set(side.prior.traits) | side.observed,
+                seen=seen | {trade_signature(k.terms) for k in sheets},
+                limit=3 - len(sheets),
+            )
+            if extras:
+                sheets += extras
+                self.log.emit(
+                    "plan",
+                    supplier_id=t.sid,
+                    reason="ask-driven trade",
+                    asks=sorted(side.asks),
+                    sheets=[{"terms": k.terms, "c": k.c, "v": k.v} for k in extras],
+                )
         mv = Move("send", t.sid, sheets=[k.terms for k in sheets], claims=self.claims_for(t), reason=reason,
                   tone="first" if not t.ours else ("close" if close else "counter"), points=self.answers(t))  # fmt: skip
         if len(t.ours) == 1:
@@ -530,6 +564,17 @@ class Negotiator(Policy):
             out.append(f"Our planning covers {self.case['buyer']['need_per_year']} units a year over the term.")
         return out
 
+    def capture_requests(self, t):
+        """Fast deterministic requests in the latest delivered supplier message."""
+        side = self.sides[t.sid]
+        body = t.last.get("body") or ""
+        if ASK_PAYMENT.search(body):
+            side.asks.add("faster_payment")
+        if ASK_VOLUME.search(body):
+            side.asks.add("volume_commitment")
+        if ASK_FORECAST.search(body):
+            side.asks.add("forecast_proof")
+
     def keepalive_move(self, t):
         return Move("send", t.sid, ask="We are reviewing your offer with our team and will come back to you "
                     "shortly. Could you confirm that it stands as sent?", keepalive=True,
@@ -542,21 +587,22 @@ class Negotiator(Policy):
         body = reply.get("body") or ""
         read = self.read(t, body)
         asks = set((read or {}).get("asks") or [])
-        if (
-            ASK_PAYMENT.search(body) or "faster_payment" in asks or (read or {}).get("cash_short")
-        ) and side.est.rate < 0.2:
-            side.est.rate = round(min(0.2, side.est.rate + 0.03), 4)
-        if ASK_VOLUME.search(body) or "volume_commitment" in asks:
-            side.est.volume_value = min(0.04, side.est.volume_value + 0.005)
-        if read and read.get("capacity_tight"):
-            side.est.overtime = max(side.est.overtime, 0.003)
+        # Reader output is unverified language evidence.  It may select a safe candidate but may
+        # not mutate rate, volume value, overtime, full cost or another economic parameter.
         if read:
             side.asks |= asks
+            side.observed |= {
+                name
+                for name in ("price_frozen", "cash_short", "capacity_tight")
+                if read.get(name)
+            }
+        self.capture_requests(t)
         self.refresh(t)
         v = side.view
         self.log.emit("model_update", supplier_id=t.sid, standing_c=v.standing_c, standing_v=v.standing_v,
                       floor_c=self.floor_c(t), ratio=v.ratio, cum_gap=v.cum_gap, status=v.status,
                       rate=side.est.rate, full_cost=side.est.full_cost, c_min=side.c_min,
+                      asks=sorted(side.asks), observed=sorted(side.observed),
                       concessions=[round(v.rel(x), 5) for x in v.concessions])  # fmt: skip
 
     def read(self, t, body):
@@ -568,7 +614,10 @@ class Negotiator(Policy):
         t0 = time.monotonic()
         out = None
         try:
-            out = self.reader.read(body, timeout=6.0)
+            from ..model.evidence import snapshot
+
+            evidence = snapshot(self.case, t) if enabled("JT_CONTEXT_SNAPSHOT") else None
+            out = self.reader.read(body, timeout=6.0, evidence=evidence)
         except Exception:  # noqa: BLE001
             out = None
         self.log.emit("llm_call", supplier_id=t.sid, role="reader", seconds=round(time.monotonic() - t0, 2),

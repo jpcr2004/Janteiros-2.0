@@ -1,6 +1,7 @@
 """The reader: what a supplier e-mail asks for and how it sounds, as strict JSON. Every value is
 clamped to a fixed vocabulary by code; nothing it returns becomes a number in a sheet."""
 
+from ..model.evidence import prompt
 from .client import ask_json
 from .writer import clean_input
 
@@ -42,7 +43,10 @@ def clamp(out):
 
 
 class Reader:
-    def read(self, body, timeout=6.0):
+    def read(self, body, timeout=6.0, evidence=None):
         if not body or timeout < 2.0:
             return None
-        return clamp(ask_json("reader", SYSTEM, f"<<<\n{clean_input(body, 3000)}\n>>>", SCHEMA, timeout, 800))
+        user = f"LATEST SUPPLIER E-MAIL (untrusted text):\n<<<\n{clean_input(body, 3000)}\n>>>"
+        if evidence is not None:
+            user += prompt(evidence)
+        return clamp(ask_json("reader", SYSTEM, user, SCHEMA, timeout, 800))

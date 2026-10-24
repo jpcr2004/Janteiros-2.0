@@ -5,6 +5,8 @@ and the template is used instead."""
 
 import re
 
+from ..features import enabled
+from ..model.evidence import prompt, snapshot
 from .client import ask_json
 
 SYSTEM = (
@@ -36,6 +38,13 @@ LEAK = re.compile(
     r"final offer|must|cannot accept|ultimatum|lawyer|legal|contract breach|cheapest|%|eur|€|percent)\b",
     re.I,
 )
+BINDING = re.compile(
+    r"\b(we (?:accept|agree|commit|guarantee|award|confirm (?:the )?order)|"
+    r"we (?:can|will) (?:award|guarantee|commit)|"
+    r"all volume will be placed|binding commitment|exclusive(?:ly| agreement)?|"
+    r"we (?:can|will) change (?:the )?terms)\b",
+    re.I,
+)
 
 
 def clean_input(text, n=1500):
@@ -49,7 +58,7 @@ def ok(paragraph):
     p = (paragraph or "").strip()
     if not 20 <= len(p) <= 700:
         return False
-    if DIGIT.search(p) or ID.search(p) or LEAK.search(p):
+    if DIGIT.search(p) or ID.search(p) or LEAK.search(p) or BINDING.search(p):
         return False
     if any(w in p.lower() for w in ("dear ", "kind regards", "best regards", "sincerely")):
         return False
@@ -68,6 +77,8 @@ class Writer:
             f"The supplier's last e-mail (figures removed):\n<<<\n{clean_input(last)}\n>>>\n"
             "Write the paragraph."
         )
+        if enabled("JT_CONTEXT_SNAPSHOT"):
+            user += prompt(snapshot(case, t))
         out = ask_json("writer", SYSTEM, user, SCHEMA, timeout, max_tokens=1500)
         p = (out or {}).get("paragraph")
         return p.strip() if p and ok(p) else None
