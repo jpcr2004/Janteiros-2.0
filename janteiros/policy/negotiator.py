@@ -417,6 +417,15 @@ class Negotiator(Policy):
                 out.append(k)
         return out[:3]
 
+    def plain_ok(self, t, pkgs):
+        """The sheets the validator lets through: it judges C without our relationship estimate,
+        against the alternative and its standing sheet (a sheet held from an earlier round, or one
+        priced with that estimate, can fail there; stress P08x11, P01x28)."""
+        alt = self.alt - max(1.0, 0.0002 * self.alt) if math.isfinite(self.alt) else math.inf
+        st = t.standing[1]
+        lim = min(alt, cost(self.case, st, t.std) - 0.01 if st else math.inf)
+        return [k for k in pkgs if cost(self.case, k.terms, t.std) < lim]
+
     def probe(self, t, best, close=False):
         """Round 1: the main sheet with one field moved to the value best for us, priced to cost us
         the same. Our value model says the supplier would not take it; if that model is wrong (P10
@@ -497,6 +506,10 @@ class Negotiator(Policy):
                 sheets = [k for k in sheets if k.c < self.alt]
                 if not sheets:
                     return None
+        if flags.on("PROBE"):
+            sheets = self.plain_ok(t, sheets)
+            if not sheets:
+                return None
         mv = Move("send", t.sid, sheets=[k.terms for k in sheets], claims=self.claims_for(t), reason=reason,
                   tone="first" if not t.ours else ("close" if close else "counter"),
                   points=self.answers(t, [k.terms for k in sheets]))  # fmt: skip
