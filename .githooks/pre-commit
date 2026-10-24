@@ -1,0 +1,15 @@
+#!/bin/sh
+# Block secrets and .env files, run ruff if Python is set up. Enable once: git config core.hooksPath .githooks
+pattern='(OPENAI_API_KEY|ANTHROPIC_API_KEY|[A-Z_]*_API_KEY)[[:space:]]*=[[:space:]]*["'"'"']?[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{16,}'
+if git diff --cached --name-only | grep -v '\.env\.example$' | grep -Eq '(^|/)\.env(\..*)?$'; then
+  echo "Blocked: .env file staged." >&2; exit 1
+fi
+hits=$(git diff --cached -U0 | grep '^+' | grep -v '^+++' | grep -E "$pattern" | head -5)
+if [ -n "$hits" ]; then
+  echo "Blocked: possible secret in commit. Move it to .env (gitignored)." >&2
+  echo "$hits" >&2; exit 1
+fi
+if command -v uv >/dev/null && [ -f pyproject.toml ]; then
+  uv run -q ruff check . || exit 1
+fi
+exit 0

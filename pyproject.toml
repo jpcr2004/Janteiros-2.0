@@ -1,0 +1,34 @@
+[project]
+name = "janteiros"
+version = "2.0.0"
+description = "Janteiros 2.0: buyer agent for the Tacto Negotiation Arena"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = ["anthropic", "arena-kit[sim,mcp]", "fastapi", "uvicorn", "httpx", "pypdf", "openpyxl"]
+
+[project.scripts]
+jt = "janteiros.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.uv.sources]
+arena-kit = { git = "https://github.com/tacto-ai/negotiation-arena-kit", subdirectory = "starter-kit", rev = "273a9bc528afdba5192479d3e2bc1cb0c3d67eaf" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["janteiros"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["ui/web"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

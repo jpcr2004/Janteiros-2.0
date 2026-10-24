@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+ui/web/dist/
+/data/package
+/data/release-sunday
+/runs/
+*.log
