@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {"name": "jt-ui", "runtimeExecutable": "uv", "runtimeArgs": ["run", "jt", "ui", "--port", "8765"], "port": 8765}
+  ]
+}
