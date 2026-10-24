@@ -6,6 +6,8 @@ or late message is recovered from the arena's own thread view. Close before a wa
 import re
 import time
 
+import httpx
+
 from ..arena.client import ArenaError
 from ..arena.docs import read_document
 from ..econ.cost import breakdown, cost
@@ -18,6 +20,8 @@ FIRST_SEND_S = 25.0  # a supplier reply until we have measured one (19 s median,
 CLOSE_BEFORE_CAP_S, ROUND_MARGIN_S = 90.0, 15.0
 CLOSE_TRIES = 4
 MAX_LOOPS = 400
+MAX_ERRORS = 8
+PANIC_TIMEOUTS = 2  # timeouts in a case before we close on the best valid sheet
 
 
 class Ended(Exception):
@@ -26,13 +30,18 @@ class Ended(Exception):
 
 
 class CaseRunner:
-    def __init__(self, arena, case, policy, log, deadline=None, final=False):
+    def __init__(self, arena, case, policy, log, deadline=None, final=False, mono=time.monotonic, wall=time.time):
         self.arena, self.case, self.policy, self.log = arena, case, policy, log
-        self.deadline = deadline  # fn -> time.time() of the wave's cap, or None
+        self.mono, self.wall = mono, wall
+        self.deadline = deadline  # fn -> self.wall() of the wave's cap, or None
         self.final = final
         self.session_id = None
         self.threads: dict[str, Thread] = {}
         self.send_times: list[float] = []
+        self.errors = 0
+        self.timeouts = 0
+        self.broken = False  # the policy failed: close with the plain rule
+        self.sleep = time.sleep
         self.slowest = 0.0
         self.docs: dict[str, str] = {}
 
@@ -48,7 +57,7 @@ class CaseRunner:
             return self.resume(running.group(1))
         self.session_id = r["session_id"]
         self.case = r.get("case") or self.case
-        now = time.monotonic()
+        now = self.mono()
         for sid, msgs in r["threads"].items():
             t = Thread(sid, replied_at=now)
             for m in msgs:
@@ -67,7 +76,7 @@ class CaseRunner:
         state = self.arena.session(session_id)
         if state.get("status") == "ended":
             raise Ended(state.get("result") or {"deal": False, "end_reason": state.get("end_reason")})
-        now = time.monotonic()
+        now = self.mono()
         for sid, info in (state.get("threads") or {}).items():
             self.threads[sid] = self.refresh(Thread(sid, replied_at=now), info.get("seconds_left"))
         self.log.emit("case_open", case=self.case, suppliers=list(self.threads), resumed=True)
@@ -79,7 +88,7 @@ class CaseRunner:
         t.closed = view.get("closed")
         t.timeouts = len(view.get("timeouts") or [])
         if seconds_left is not None:
-            t.replied_at = time.monotonic() - (CLOCK_S - float(seconds_left))
+            t.replied_at = self.mono() - (CLOCK_S - float(seconds_left))
         return t
 
     def fetch(self, m):
@@ -128,59 +137,112 @@ class CaseRunner:
         cap = self.deadline() if callable(self.deadline) else self.deadline
         if not cap:
             return False, None
-        left = cap - time.time()
+        left = cap - self.wall()
         return left < max(CLOSE_BEFORE_CAP_S, self.slowest + ROUND_MARGIN_S), left
 
     def budget(self, target: Thread):
         """Seconds we may spend composing the message to `target`: its own clock must not run out,
         and every other live thread must still get its turn after this send."""
-        now, s = time.monotonic(), self.send_s()
+        now, s = self.mono(), self.send_s()
         left = [CLOCK_S - MARGIN_S - target.age(now)]
         for o in self.live():
             if o is not target and self.policy.keep_alive(o):
                 left.append(CLOCK_S - MARGIN_S - s - o.age(now))
         cap = self.deadline() if callable(self.deadline) else self.deadline
         if cap:
-            left.append(cap - time.time() - max(CLOSE_BEFORE_CAP_S, self.slowest + ROUND_MARGIN_S) - s)
+            left.append(cap - self.wall() - max(CLOSE_BEFORE_CAP_S, self.slowest + ROUND_MARGIN_S) - s)
         return max(0.0, min(left))
 
     def run(self):
         try:
             resumed = self.open()
-            self.policy.setup(self.threads, self.log, resumed=resumed)
+            try:
+                self.policy.setup(self.threads, self.log, resumed=resumed)
+            except Exception as e:  # noqa: BLE001 - play on with the plain close rather than lose the case
+                self.log.emit("error", where="setup", error=repr(e)[:500])
+                self.broken = True
             for _ in range(MAX_LOOPS):
-                if not self.live():
-                    return self.finish()
-                near, left = self.near_cap()
-                if near:
-                    self.log.emit("clock", what="close_before_cap", seconds_left=left)
-                mv = self.policy.close_decision(self.threads, final=near)
-                if mv is not None:
-                    out = self.close(mv)
-                    if out is not None:
-                        return out
+                try:
+                    out = self.tick()
+                except Ended:
+                    raise
+                except (ArenaError, httpx.TransportError) as e:
+                    if isinstance(e, ArenaError) and e.status in (401, 403, 404):
+                        raise
+                    self.errors += 1
+                    self.log.emit("error", where="loop", error=repr(e)[:500], n=self.errors)
+                    if self.errors > MAX_ERRORS:
+                        raise
+                    self.recover()
                     continue
-                target = self.pick()
-                if target is None:
-                    mv = self.policy.close_decision(self.threads, final=True)
-                    out = self.close(mv) if mv else None
-                    if out is not None:
-                        return out
+                except Exception as e:  # noqa: BLE001 - a bug in the policy must not lose the case
+                    self.errors += 1
+                    self.broken = True
+                    self.log.emit("error", where="policy", error=repr(e)[:500], n=self.errors)
                     continue
-                self.step(target)
-            mv = self.policy.close_decision(self.threads, final=True)
-            return (self.close(mv) if mv else None) or self.finish()
+                if out is not None:
+                    return out
+            return self.close(self.fallback_close()) or self.finish()
         except Ended as e:
             return self.done(e.result)
 
+    def tick(self):
+        """One decision: close, or one message. Returns the result once the case has ended."""
+        if not self.live():
+            out = self.finish()
+            if out is None:  # every thread ended but the session did not: close it ourselves
+                return self.close(self.fallback_close())
+            return out
+        near, left = self.near_cap()
+        if near:
+            self.log.emit("clock", what="close_before_cap", seconds_left=left)
+        if self.broken:
+            return self.close(self.fallback_close()) or self.finish()
+        mv = self.policy.close_decision(self.threads, final=near)
+        if mv is not None:
+            return self.close(mv)
+        target = self.pick()
+        if target is None:
+            mv = self.policy.close_decision(self.threads, final=True)
+            return self.close(mv) if mv else None
+        self.step(target)
+        return None
+
+    def fallback_close(self):
+        """Without our policy: the cheapest standing sheet that passes the gate, else walk."""
+        from ..policy.base import Policy
+
+        return Policy.close_decision(Policy(self.case), self.threads, final=True)
+
+    def recover(self):
+        """After a network or server error: the arena's own view of every thread."""
+        self.sleep(min(5.0, 0.5 * 2**self.errors))
+        lefts, st = self.seconds_left()
+        if st.get("status") == "ended":
+            raise Ended(st.get("result") or {"deal": False, "end_reason": st.get("end_reason")})
+        for t in self.threads.values():
+            try:
+                self.refresh(t, lefts.get(t.sid))
+            except ArenaError:
+                pass
+
     def pick(self):
         """The thread to message now: a keepalive if a waiting thread's clock would lapse, else the
-        active thread whose clock has run longest."""
-        now, s = time.monotonic(), self.send_s()
+        active thread whose clock has run longest. With more active threads than one clock can
+        serve (the arena serialises a session's calls), the least promising stops."""
+        now, s = self.mono(), self.send_s()
         live = self.live()
         active = [t for t in live if self.policy.wants_message(t) and t.moves_left(self.case) > 0]
+        # a thread waits for one send to every other active thread before its own turn
+        while len(active) > 1 and (len(active) - 1) * s > CLOCK_S - MARGIN_S - 2.0:
+            worst = max(active, key=self.policy.priority)
+            worst.pruned = True
+            active.remove(worst)
+            self.log.emit("clock", what="prune_for_time", supplier_id=worst.sid, send_s=round(s, 1),
+                          active=len(active) + 1)  # fmt: skip
         waiting = [t for t in live if t not in active and self.policy.keep_alive(t) and t.moves_left(self.case) > 1]
-        due = [t for t in waiting if t.age(now) + s * max(1, len(active)) > CLOCK_S - MARGIN_S - s]
+        # a waiting thread needs a message now if one more send elsewhere would let its clock lapse
+        due = [t for t in waiting if active and t.age(now) + s > CLOCK_S - MARGIN_S]
         if due:
             t = max(due, key=lambda t: t.age(now))
             t._keepalive = True
@@ -196,6 +258,8 @@ class CaseRunner:
         budget = self.budget(t)
         move = self.policy.keepalive_move(t) if keep else self.policy.next_move(t, budget)
         if move is None:
+            t.pruned = True  # nothing more to offer here; its standing sheet stays a candidate
+            self.log.emit("model_update", supplier_id=t.sid, pruned=True, stop="no move")
             return
         msg = self.policy.compose(t, move, budget)
         problems = self.check(t, msg, move)
@@ -221,12 +285,12 @@ class CaseRunner:
                       body=msg.get("body"), sheets=sheets, refs=msg.get("refs", []),
                       c=[cost(self.case, s, std, self.policy.est(t)) for s in sheets],
                       claims=[c.get("sentence") for c in move.claims], reason=move.reason,
-                      age=round(t.age(), 1), keepalive=move.keepalive)  # fmt: skip
-        t0 = time.monotonic()
+                      age=round(t.age(self.mono()), 1), keepalive=move.keepalive)  # fmt: skip
+        t0 = self.mono()
         try:
             reply = self.arena.send_message(self.session_id, t.sid, msg)
         except ArenaError as e:
-            took = time.monotonic() - t0
+            took = self.mono() - t0
             if e.status == 409:
                 self.log.emit("timeout", supplier_id=t.sid, detail=str(e.detail)[:300])
                 return self.after_409(t)
@@ -237,14 +301,14 @@ class CaseRunner:
                     t.pruned = True
                 return None
             raise
-        took = time.monotonic() - t0
+        took = self.mono() - t0
         self.send_times.append(took)
         self.slowest = max(self.slowest, took + 2.0)
         if "result" in reply and reply.get("result"):
             t.messages += [{**msg, "from": "buyer"}, reply]
             raise Ended(reply["result"])
         t.messages += [{**msg, "from": "buyer"}, self.fetch(reply)]
-        t.replied_at = time.monotonic()
+        t.replied_at = self.mono()
         sid, terms = t.standing
         std = t.std
         self.log.emit("reply", supplier_id=t.sid, round=t.rounds_used, status=reply.get("status"),
@@ -257,6 +321,10 @@ class CaseRunner:
         return reply
 
     def after_409(self, t: Thread):
+        self.timeouts += 1
+        if self.timeouts >= PANIC_TIMEOUTS:
+            self.broken = True  # the clocks are not holding: close on the best valid sheet now
+            self.log.emit("clock", what="panic_close", timeouts=self.timeouts)
         lefts, st = self.seconds_left()
         if st.get("status") == "ended":
             raise Ended(st.get("result") or {"deal": False, "end_reason": st.get("end_reason")})
@@ -304,10 +372,13 @@ class CaseRunner:
         return None
 
     def finish(self):
+        """The result once the session has ended; None while it is still open."""
         try:
             st = self.arena.session(self.session_id)
         except ArenaError:
-            st = {}
+            return None
+        if st.get("status") != "ended":
+            return None
         return self.done(st.get("result") or {"deal": False, "end_reason": st.get("end_reason")})
 
     def done(self, result):

@@ -43,6 +43,10 @@ class Policy:
     def keep_alive(self, t) -> bool:
         return False
 
+    def priority(self, t):
+        """Lower is more promising (who keeps a clock when time is short)."""
+        return self.c_of(t, t.standing[1])
+
     def next_move(self, t, budget):
         return None
 

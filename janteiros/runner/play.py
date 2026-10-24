@@ -3,6 +3,7 @@
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from ..arena.client import Arena, ArenaError
 from ..events.log import EventLog
@@ -20,7 +21,10 @@ def world():
             try:
                 from ..world.index import World
 
-                _world = World.load(os.environ.get("ARENA_DATA") or "data/package")
+                root = Path(os.environ.get("ARENA_DATA") or "data/package")
+                if not root.is_absolute():
+                    root = Path(__file__).resolve().parents[2] / root
+                _world = World.load(root)
             except Exception:  # noqa: BLE001 - play without data rather than not at all
                 _world = False
         return _world or None
@@ -41,10 +45,10 @@ def make_policy(name, case, arena=None):
     return Negotiator(case, w, writer_from_env(), learn=not local)
 
 
-def play_case(arena, case, log, policy="main", deadline=None, final=False):
+def play_case(arena, case, log, policy="main", deadline=None, final=False, **clocks):
     clog = log.bind(case_id=case["case_id"])
     pol = make_policy(policy, case, arena)
-    runner = CaseRunner(arena, case, pol, clog, deadline=deadline, final=final)
+    runner = CaseRunner(arena, case, pol, clog, deadline=deadline, final=final, **clocks)
     try:
         return runner.run()
     except Ended as e:

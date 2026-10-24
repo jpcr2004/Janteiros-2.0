@@ -90,7 +90,7 @@ def prior(case, sid, opening=None, world_profile=None):
     if case.get("type") == "rfq" and len(case.get("suppliers") or []) > 1:
         p.room += 0.03
     if p.owner == "founder":
-        p.ratio = 0.6
+        p.ratio, p.patience = 0.6, 0.4
     elif p.owner in ("group", "distributor"):
         p.ratio = 0.4
     return p

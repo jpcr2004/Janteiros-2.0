@@ -39,10 +39,18 @@ def frozen_clock():
     return 1_000_000.0
 
 
+def package_facts():
+    import json as _json
+
+    root = Path(os.environ.get("ARENA_DATA") or ROOT / "data" / "package")
+    root = root if root.is_absolute() else ROOT / root
+    return _json.loads((root / "facts.json").read_text(encoding="utf-8"))
+
+
 def kit_suite():
     from arena_kit.sim import Sim, create_app, load_cases
 
-    sim = Sim(load_cases(), clock=frozen_clock)
+    sim = Sim(load_cases(), facts=package_facts(), clock=frozen_clock)
     return "arena-sim", sim, create_app(sim), [(cid, None) for cid in sorted(sim.cases)]
 
 

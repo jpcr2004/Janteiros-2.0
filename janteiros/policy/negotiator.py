@@ -209,6 +209,9 @@ class Negotiator(Policy):
         return (not ok and math.isfinite(self.alt) and not side.mirrored and t.live and t.status == "open"
                 and t.moves_left(self.case) > 0 and why != "pruned")  # fmt: skip
 
+    def priority(self, t):
+        return self.floor_c(t) if t.sid in self.sides else math.inf
+
     def keep_alive(self, t):
         best = self.best_standing(self.threads)
         return bool(best and best[1] is t) and not self.wants_message(t)
@@ -217,7 +220,11 @@ class Negotiator(Policy):
     def anchor_v(self, t):
         side, v = self.sides[t.sid], self.sides[t.sid].view
         p = side.prior
-        rel = min(0.24, max(0.03, 1.25 * p.room + 0.01), p.patience * 0.45)
+        # a deep anchor spends patience (the sum of our gaps) fast; founders in an RFQ drop deep
+        # on their first counter, so a held deep anchor works there (P05: 0.828)
+        rfq = len(self.case.get("suppliers") or []) > 1
+        share = 0.55 if (rfq and p.owner == "founder") else 0.3
+        rel = min(0.24, max(0.03, 1.25 * p.room + 0.01), p.patience * share)
         return v.quote_v - rel * v.price, f"anchor {rel:.3f} under its quote"
 
     def target_v(self, t):

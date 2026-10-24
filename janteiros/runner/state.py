@@ -55,8 +55,8 @@ class Thread:
     def live(self) -> bool:
         return not self.closed and self.status not in ENDED
 
-    def age(self, now=None) -> float:
-        return (now or time.monotonic()) - self.replied_at
+    def age(self, now) -> float:
+        return now - self.replied_at
 
     @property
     def ours(self) -> list:
