@@ -137,7 +137,7 @@ function priceInfo(c) {
 }
 
 function boardView() {
-  nav("runs");
+  nav(S.runs.find((r) => r.run_id === S.run && r.kind === "real") ? "arena" : "all");
   const cases = caseRows(derive(S.events).values());
   const run = S.runs.find((r) => r.run_id === S.run) || {};
   const now = Date.now();
@@ -145,7 +145,7 @@ function boardView() {
   const live = cases.filter((c) => !c.result);
   const mean = ended.length ? ended.reduce((a, c) => a + (c.result.score || 0), 0) / ended.length : null;
   const saved = ended.reduce((a, c) => a + (c.c_open != null && c.result.c_deal != null ? c.c_open - c.result.c_deal : 0), 0);
-  let html = `<div class="sub"><a href="#/">← todas as rodadas</a></div>
+  let html = `<div class="sub"><a href="#/">← arena</a> · <a href="#/all">todas as rodadas</a></div>
     <h1>${badge(run.kind)} ${esc(run.set || run.mode || "")} <span class="sub">${esc(S.run)}</span></h1>
     <div class="sub">${esc(KIND[run.kind] ? KIND[run.kind][2] : "")}</div>
     <div class="kpis">
@@ -263,7 +263,7 @@ function waterfall(b, w = 560, h = 220) {
 }
 
 function caseView(caseId) {
-  nav("runs");
+  nav(S.runs.find((r) => r.run_id === S.run && r.kind === "real") ? "arena" : "all");
   const evs = S.events;
   const caseEvents = evs.filter((e) => e.case_id === caseId);
   const tmin = caseEvents.length ? caseEvents[0].t : 0, tmax = caseEvents.length ? caseEvents[caseEvents.length - 1].t : 0;
@@ -339,15 +339,57 @@ function play(times, tmax) {
   render(); tick();
 }
 
+function scoreColor(sc) { return sc == null ? "transparent" : sc >= 0.8 ? "var(--good)" : sc >= 0.6 ? "var(--warn)" : "var(--bad)"; }
+
+function arenaView() {
+  nav("arena");
+  const real = S.runs.filter((r) => r.kind === "real").sort((a, b) => (a.started < b.started ? 1 : -1));
+  let html = `<h1>Arena real</h1><div class="sub">Só as rodadas jogadas na arena.tacto.ai contra os fornecedores reais. Ensaios e simulador ficam em <a href="#/all">todas as rodadas</a>.</div>${HELP}`;
+  if (!real.length) return html + `<div class="empty">Nenhuma rodada na arena ainda. Rode: <code>uv run jt run --set practice --real</code></div>`;
+  // best per case over every real run: what the practice leaderboard counts
+  const best = {};
+  for (const r of real) for (const [c, v] of Object.entries(r.by_case || {})) if (!best[c] || v.score > best[c].score) best[c] = { ...v, run: r.run_id };
+  const cases = Object.keys(best).sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+  const bestMean = cases.length ? cases.reduce((a, c) => a + best[c].score, 0) / cases.length : null;
+  const last = real[0];
+  html += `<div class="kpis">
+    <div class="card"><div class="k">última rodada</div><div class="score-big">${num(last.mean, 3)}</div><div class="sub">${esc((last.started || "").slice(0, 16).replace("T", " "))} UTC · ${last.results} casos · ${esc(last.commit)}</div></div>
+    <div class="card"><div class="k">nosso melhor por caso</div><div class="score-big">${num(bestMean, 3)}</div><div class="sub">média do melhor score de cada caso nas rodadas abaixo (como o leaderboard conta, só que só com as nossas rodadas)</div></div>
+    <div class="card"><div class="k">rodadas na arena</div><div class="score-big">${real.length}</div><div class="sub">${real.reduce((a, r) => a + r.results, 0)} sessões</div></div>
+  </div>`;
+  html += `<h2>Histórico das rodadas</h2><table><tr><th>quando (UTC)</th><th>conjunto</th><th class="num">casos</th><th class="num">acordos</th><th class="num">score médio</th><th class="num">Δ vs anterior</th><th>versão</th></tr>`;
+  real.forEach((r, k) => {
+    const prev = real[k + 1];
+    // compare on the cases both runs played
+    let d = null;
+    if (prev) {
+      const common = Object.keys(r.by_case || {}).filter((c) => prev.by_case && prev.by_case[c]);
+      if (common.length) d = common.reduce((a, c) => a + r.by_case[c].score - prev.by_case[c].score, 0) / common.length;
+    }
+    html += `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc((r.started || "").slice(0, 16).replace("T", " "))}</td><td>${esc(r.set || "")}</td><td class="num">${r.results}</td><td class="num">${r.deals}</td>
+      <td class="num"><b>${num(r.mean, 3)}</b></td><td class="num ${d > 0.005 ? "up" : d < -0.005 ? "down" : ""}">${d == null ? "" : (d > 0 ? "+" : "") + num(d, 3)}</td><td>${esc(r.commit)}</td></tr>`;
+  });
+  html += `</table><div class="sub" style="margin-top:6px">Δ compara só os casos que as duas rodadas jogaram.</div>`;
+  const cols = real.slice(0, 8);
+  html += `<h2>Score por caso, rodada a rodada</h2><table class="matrix"><tr><th>caso</th>${cols.map((r) => `<th class="num">${esc((r.started || "").slice(5, 16).replace("T", " "))}<div class="sub">${esc(r.commit)}</div></th>`).join("")}<th class="num">melhor</th></tr>`;
+  for (const c of cases) {
+    html += `<tr><td><b>${esc(c.replace("case:", ""))}</b></td>${cols.map((r) => {
+      const v = (r.by_case || {})[c];
+      return v ? `<td class="num click" data-href="#/run/${encodeURIComponent(r.run_id)}/case/${encodeURIComponent(c)}"><span class="dot" style="background:${scoreColor(v.score)}"></span>${num(v.score, 3)}${v.deal ? "" : " <span class='sub'>s/ acordo</span>"}</td>` : `<td class="num sub">·</td>`;
+    }).join("")}<td class="num"><b>${num(best[c].score, 3)}</b></td></tr>`;
+  }
+  html += `</table><div class="sub" style="margin-top:6px">Clique num score para abrir aquela negociação.</div>`;
+  return html;
+}
+
 function runsView() {
-  nav("runs");
+  nav("all");
   const groups = [["real", "Arena real (os scores que contam)"], ["rehearsal", "Ensaios da final"], ["sim", "Simulador (comparar versões)"], ["local", "Arena-sim local"], ["other", "Outros (debug, stress)"]];
-  let html = `<h1>Rodadas</h1><div class="sub">Cada vez que o agente rodou. Clique para abrir. As rodadas na <b>arena real</b> são as que importam; o simulador serve para comparar versões do agente.</div>${HELP}`;
+  let html = `<h1>Todas as rodadas</h1><div class="sub">Inclui ensaios e simulador. Para só a arena real, veja <a href="#/">Arena</a>.</div>`;
   for (const [k, title] of groups) {
     const rs = S.runs.filter((r) => r.kind === k);
     if (!rs.length) continue;
-    const open = k !== "other";
-    html += `<details ${open ? "open" : ""}><summary><h2 style="display:inline">${badge(k)} ${esc(title)} <span class="sub">(${rs.length})</span></h2></summary>
+    html += `<details ${k === "real" || k === "rehearsal" ? "open" : ""}><summary><h2 style="display:inline">${badge(k)} ${esc(title)} <span class="sub">(${rs.length})</span></h2></summary>
     <table><tr><th>quando (UTC)</th><th>conjunto</th><th class="num">casos</th><th class="num">acordos</th><th class="num">score médio</th><th>commit</th><th>id</th></tr>
     ${rs.map((r) => `<tr class="click" data-href="#/run/${encodeURIComponent(r.run_id)}"><td>${esc((r.started || "").slice(0, 16).replace("T", " "))}</td><td>${esc(r.set || r.mode || "")}</td>
       <td class="num">${r.results}/${r.cases}</td><td class="num">${r.deals}</td><td class="num"><b>${num(r.mean, 3)}</b></td><td>${esc(r.commit)}</td><td class="sub">${esc(r.run_id)}</td></tr>`).join("")}</table></details>`;
@@ -388,8 +430,10 @@ async function render() {
   const app = $("#app");
   try {
     if (parts[0] === "history") { S.history = await getJSON("/api/history"); app.innerHTML = historyView(); }
-    else if (parts[0] !== "run") {
+    else if (parts[0] === "all") {
       S.runs = await getJSON("/api/runs"); app.innerHTML = runsView();
+    } else if (parts[0] !== "run") {
+      S.runs = await getJSON("/api/runs"); app.innerHTML = arenaView();
     } else {
       if (!S.runs.length) S.runs = await getJSON("/api/runs");
       await openRun(parts[1]);

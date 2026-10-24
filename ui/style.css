@@ -97,3 +97,5 @@ svg .grid line { stroke: var(--line); }
 .scorecell { display: flex; align-items: center; gap: 8px; } .scorecell .bar { width: 70px; margin: 0; display: inline-block; }
 table.cases td { vertical-align: top; }
 details > summary { cursor: pointer; list-style: none; } details > summary::-webkit-details-marker { display: none; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+table.matrix td.click { cursor: pointer; } table.matrix td.click:hover { background: var(--accent-soft); }
