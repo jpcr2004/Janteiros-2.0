@@ -495,6 +495,13 @@ class Negotiator(Policy):
             return self.rescue_move(t, why)
         if why is not None:  # only the last sheet at the ceiling gets here
             side.mirrored = True
+            if flags.on("RESCUE"):
+                # its standing sheet fails the gate (often on its standard terms, not its price):
+                # first the cheapest valid package worth its standing sheet to it, the ceiling only
+                # when there is none (S03 generic: the ceiling jumped 222 -> 248.76, agreed at once)
+                mv = self.rescue_move(t, why, count=False)
+                if mv is not None:
+                    return mv
             return self.ceiling_move(t, why)
         if v.frozen and not side.traded and t.ours:
             mv = self.trade(t)
@@ -608,14 +615,15 @@ class Negotiator(Policy):
             return False
         return self.best_standing(self.threads) is None
 
-    def rescue_move(self, t, why):
-        """A sheet that keeps every must-have and is worth at least its standing sheet to it (so it
-        can agree at once), the cheapest such for us."""
+    def rescue_move(self, t, why, count=True):
+        """A sheet that keeps every must-have, beats the alternative and is worth at least its
+        standing sheet to it (so it can agree at once), the cheapest such for us."""
         side, v = self.sides[t.sid], self.sides[t.sid].view
-        side.rescues += 1
+        side.rescues += count
         target = v.standing_v + 0.001 * v.price
+        ceiling = self.alt - max(1.0, 0.0005 * self.alt) if math.isfinite(self.alt) else math.inf
         pkgs = [k for k in at_value(self.case, t.std, side.est, target)
-                if gate(self.case, k.terms, t.std, self.est(t))[0]]  # fmt: skip
+                if gate(self.case, k.terms, t.std, self.est(t))[0] and k.c < ceiling]  # fmt: skip
         if not pkgs:
             self.log.emit("plan", supplier_id=t.sid, reason=f"rescue: no valid package ({why})")
             return None

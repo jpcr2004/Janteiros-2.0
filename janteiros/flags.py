@@ -17,9 +17,16 @@ NAMES = (
 )
 
 
+DEFAULT_OFF = ("GENERIC",)  # experiments measured worse offline: on only when asked for by name
+
+
 def on(name):
     assert name in NAMES, name
-    v = os.environ.get(f"JT_X_{name}", os.environ.get("JT_X_ALL"))
+    v = os.environ.get(f"JT_X_{name}")
+    if v is None and name in DEFAULT_OFF:
+        return False
+    if v is None:
+        v = os.environ.get("JT_X_ALL")
     return v is None or v.strip().lower() not in ("0", "false", "no", "off", "")
 
 
