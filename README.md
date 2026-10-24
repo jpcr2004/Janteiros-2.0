@@ -25,3 +25,12 @@ uv run jt ui                              # monitor at http://localhost:8765
 ```
 
 `--real` is required for any non-local arena. Tests: `uv run pytest`.
+
+## agente-v2 (this branch)
+Changes after baseline-r4, each behind a switch (see `janteiros/flags.py`, NOTES.md). Real-arena
+checks, run by the humans from this folder:
+
+    uv run jt run --set practice --real                      # all 10 practice cases, LLM on
+    uv run jt run --set sandbox --cases case:D02 --real      # two bidders (does not use the quota)
+    JT_X_ALL=0 uv run jt run --set practice --real           # the same code as baseline-r4
+    uv run python scripts/record_arena.py <run_id> <commit> "<note>"
