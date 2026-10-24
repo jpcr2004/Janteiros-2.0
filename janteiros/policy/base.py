@@ -34,6 +34,9 @@ class Policy:
     def est(self, t):
         return None
 
+    def pessimistic_est(self, t):
+        return None
+
     def known_id(self, ref):
         return self.world.known(ref) if self.world else True
 
@@ -71,6 +74,10 @@ class Policy:
             if not sid:
                 continue
             ok, c, _ = gate(self.case, terms, t.std, self.est(t))
+            if ok and self.pessimistic_est(t) is not None:
+                # the relationship charge rides on a full cost we only estimate: the deal must
+                # beat the alternative with a higher one too (a lower margin costs more)
+                ok = gate(self.case, terms, t.std, self.pessimistic_est(t))[0]
             if ok and (best is None or c < best[0]):
                 best = (c, t)
         return best

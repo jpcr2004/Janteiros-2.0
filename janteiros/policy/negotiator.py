@@ -137,6 +137,17 @@ class Negotiator(Policy):
         side = self.sides.get(t.sid)
         return side.est if side and side.est.full_cost else None
 
+    def pessimistic_est(self, t):
+        """Relationship goals with an alternative: our estimate with a full cost 4 % higher."""
+        e = self.est(t)
+        if e is None or not math.isfinite(self.alt):
+            return None
+        import copy
+
+        p = copy.copy(e)
+        p.full_cost = e.full_cost * 1.04
+        return p
+
     def known_id(self, ref):
         if ref.startswith("offer:"):
             return any(s.get("term_sheet_id") == ref for t in self.threads.values() for m in t.theirs
@@ -309,7 +320,8 @@ class Negotiator(Policy):
             # our C-minimum sits above its quote: the full-cost estimate is off; judge the anchor
             # without the relationship charge until its counters bound that estimate
             base = cost(self.case, t.standing[1], t.std)
-            out = [k for k in (self.under_next(t, k) for k in cands) if cost(self.case, k.terms, t.std) < base]
+            ceiling = min(base, self.alt - max(1.0, 0.0002 * self.alt)) if math.isfinite(self.alt) else base
+            out = [k for k in (self.under_next(t, k) for k in cands) if cost(self.case, k.terms, t.std) < ceiling]
         out.sort(key=lambda k: k.c)
         return out
 
@@ -410,6 +422,9 @@ class Negotiator(Policy):
                 reason = f"hold our last offer ({reason})"
                 sheets = [Package(dict(x), cost(self.case, x, t.std, self.est(t)), value(self.case, x, side.est))
                           for x in prev[:2]]  # fmt: skip
+                sheets = [k for k in sheets if k.c < self.alt]
+                if not sheets:
+                    return None
         mv = Move("send", t.sid, sheets=[k.terms for k in sheets], claims=self.claims_for(t), reason=reason,
                   tone="first" if not t.ours else ("close" if close else "counter"), points=self.answers(t))  # fmt: skip
         if len(t.ours) == 1:
