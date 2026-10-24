@@ -57,3 +57,11 @@ repo, uv, hook, guard+test, wrapper, event log, runner, validator, trivial polic
 - LLM writer/reader not measured (no key in .env).
 - Promotion rule fails on arena-sim S02/S03 (kit artifact, see above): humans decide.
 - LLM key: only LLM_API_KEY (from .env or the shell); a shell ANTHROPIC_API_KEY is ignored (it may bill someone else). LLM eval waits for that key.
+
+## M6 measured (LLM, opus 5.5 effort low, sim2 quick 32)
+- no LLM 0.7439 | writer+reader 0.7439 | reader only 0.7439. sim2 suppliers ignore wording, so this
+  shows safety, not persuasion: writer 88/88 paragraphs accepted by the guard, median 3.3 s, max
+  9.9 s; reader 80 calls, 1 timeout fallback, median 2.0 s. Kept on (neutral and safe); switch off
+  with JT_NO_WRITER=1 / JT_NO_READER=1 / JT_NO_LLM=1. The real arena decides.
+- Final rehearsal (real time, arena-sim, 2 waves, all cases parallel): passed twice in a row on
+  2018fd2 (6/6 deals each, no timeouts).
