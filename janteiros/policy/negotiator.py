@@ -81,6 +81,7 @@ class Negotiator(Policy):
             _, st = t.standing
             est = make_est(self.case, t.std, rate=p.rate, ppm=p.ppm_real, lead=(st or {}).get("lead_time_days"),
                            overtime=p.overtime, clause_moves=p.clause_moves, volume_value=p.volume_value,
+                           security=p.security,
                            hedged="hedged" in p.traits and p.owner != "distributor"
                            and self.case.get("type") != "raw_material")  # fmt: skip
             side = self.sides[sid] = Side(p, est)
@@ -211,7 +212,7 @@ class Negotiator(Policy):
             if v.frozen and side.traded:
                 return "frozen after a trade"
             if side.closing and _answered_last(t):
-                still = v.concessions and v.rel(v.concessions[-1]) >= 0.005
+                still = v.concessions and v.rel(v.concessions[-1]) >= 0.0015
                 if still and t.moves_left(self.case) > 1 and v.cum_gap < side.prior.patience * 0.8:
                     side.closing = False  # it answered with a real step down: keep going (P08 5.47 -> 5.42)
                 else:
@@ -254,7 +255,10 @@ class Negotiator(Policy):
         # a deep anchor spends patience (the sum of our gaps) fast; founders in an RFQ drop deep
         # on their first counter, so a held deep anchor works there (P05: 0.828)
         rfq = len(self.case.get("suppliers") or []) > 1
-        share = 0.55 if (rfq and p.owner == "founder") else 0.3
+        # founders in an RFQ and raw-material distributors took deep anchors without walking
+        # (P05 0.226 under its quote, P08/P18 0.21)
+        deep = (rfq and p.owner == "founder") or self.case.get("type") == "raw_material"
+        share = 0.55 if deep else 0.3
         # below the room it usually gives, and well below its expected first counter (a sheet at
         # or above that counter gets `agreed` and freezes)
         # it concedes about min(0.8 x our move, a shrinking cap) after its first counter: a gap of
@@ -390,7 +394,9 @@ class Negotiator(Policy):
                 k = Package({**full, "unit_price": p}, 0.0, 0.0)
                 terms = k.terms if close else self.under_next(t, k).terms
                 c = cost(self.case, terms, t.std, self.est(t))
-                if c <= best.c + 0.5 and musts_ok(self.case, terms, t.std):
+                # a hedge far under the main price reads as an insult, not as an option
+                sane = terms["unit_price"] >= 0.92 * best.price
+                if c <= best.c + 0.5 and sane and musts_ok(self.case, terms, t.std):
                     out.append(Package(terms, c, value(self.case, terms, side.est)))
         return out[:3]
 

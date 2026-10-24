@@ -77,3 +77,14 @@ P08 0.471 · P02 0.000. No timeouts, no crashes, all claims verified. Fixes from
 - Full-cost prior without should-cost 0.92 x quote (real 0.91-0.995); gate also with
   max(1.04 x fc, 0.95 x quote) (stress found a deal above the alternative otherwise).
 - sim2 after the fixes: 0.7507 (64, no LLM). Not yet re-run on the real arena.
+
+## Real practice run 2 (6b9ce35): mean 0.742 (run 1 0.670)
+P02 0.000 -> 0.854 (margin fix works). P08 0.471 -> 0.438, P18 0.485 -> 0.386: worse. Other cases
+identical to the cent (suppliers answer identical sheets identically).
+- Distributors: the old agent's best real sessions (P18 5.00, P08 5.24) used 36 months, an anchor
+  ~21 % under the quote, steps of 4/2/1.5 %; its first counters came 5.30-5.52 vs our 5.70-5.90 at
+  24 months. Changes: contract length valued 2 %/year for raw material (security, not cash: the
+  margin ignores it), supplier-friendly tie-break at equal C (longer contract, more volume, later
+  delivery, looser ppm, smaller chargeback), anchor share 0.55 for raw material, keep going after a
+  close-out while it concedes >= 0.15 %, no hedge sheet 8 % under the main one.
+- sim2 0.7507 -> 0.7661 (personas now value contract length for raw material too). Stress clean.

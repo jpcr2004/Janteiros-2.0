@@ -218,7 +218,8 @@ def build(case, sid, world, rng, recorded=None):
     std = standard_terms(case, quote, prof, sup_row)
     rate = OWNER_RATE.get(owner, 0.07) * rng.uniform(0.7, 1.3) + (0.05 if "cash_need" in traits else 0.0)
     est = make_est(case, std, rate=round(rate, 4), ppm=prof.get("ppm"), lead=std.get("lead_time_days"),
-                   overtime=0.0045 if "capacity_full" in traits else 0.0006, clause_moves=prof.get("clause_moves") or {})  # fmt: skip
+                   overtime=0.0045 if "capacity_full" in traits else 0.0006, clause_moves=prof.get("clause_moves") or {},
+                   security=0.02 if case.get("type") == "raw_material" else 0.0)  # fmt: skip
     qv = value(case, quote, est)
     sc = prof.get("should_cost")
     fc = sc * rng.uniform(0.97, 0.995) if sc and sc < quote["unit_price"] * 1.1 else qv * (1 - rng.uniform(0.05, 0.11))

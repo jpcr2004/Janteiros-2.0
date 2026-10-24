@@ -60,8 +60,17 @@ def at_value(case, std, est: Est, target_v, fixed=None):
         c = cost(case, terms, std, est)
         if math.isfinite(c):
             out.append(Package(terms, c, value(case, terms, est)))
-    out.sort(key=lambda k: k.c)
+    # equal cost for us (to the euro): the package friendlier to the supplier first
+    out.sort(key=lambda k: (round(k.c), friendliness(k.terms)))
     return out
+
+
+def friendliness(terms):
+    """Lower sorts first = friendlier to the supplier: a longer contract and more volume (security,
+    free for us beyond our horizon and need), a later delivery, a looser ppm, a smaller chargeback."""
+    return (-(terms.get("contract_months") or 0), -(terms.get("volume_per_year") or 0),
+            -(terms.get("lead_time_days") or 0), -(terms.get("ppm_commitment") or 0),
+            terms.get("chargeback_eur_per_complaint") or 0)  # fmt: skip
 
 
 def pareto(pkgs):

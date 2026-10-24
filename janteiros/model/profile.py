@@ -61,6 +61,9 @@ class Prior:
     patience: float = 0.36  # cumulative gap at which it goes final
     overtime: float = 0.0005  # share of price per day faster
     volume_value: float = 0.0
+    # a longer contract is security to it, not cash; distributors priced 36 months well under 24
+    # (P08/P18 first counters 5.30-5.52 at 36 months against 5.70-5.90 at 24)
+    security: float = 0.0
     should_cost: float | None = None
     ppm_real: float | None = None
     clause_moves: dict = field(default_factory=dict)
@@ -96,6 +99,8 @@ def prior(case, sid, opening=None, world_profile=None):
         p.rate = max(p.rate, wp["rate"])
     if "cash_need" in p.traits:
         p.rate += 0.05
+    if case.get("type") == "raw_material":
+        p.security = 0.02  # seen on the distributors only (P08/P18); elsewhere no evidence
     rfq = case.get("type") == "rfq" and len(case.get("suppliers") or []) > 1
     owner_room = OWNER_ROOM.get(p.owner, 0.06)
     if p.owner == "founder" and not rfq:
