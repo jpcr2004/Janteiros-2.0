@@ -47,7 +47,16 @@ class Sim2(Sim):
             rec = self.recorded.get(f"{base}|{sup}") if not case.get("synthetic_suppliers") else None
             if rec and case.get("goal_variant"):  # its paths still fit; its c_best belongs to the base goal
                 rec = {"sessions": [{**x, "c_best": None} for x in rec["sessions"]]}
-            p = build(case, sup, cw, rng, rec)
+            twin = (case.get("twins") or {}).get(sup)
+            if twin and (s["id"], twin) in self.personas:
+                # "two bids alike": the same economics and manner as its twin, a slightly other price
+                p = copy.deepcopy(self.personas[(s["id"], twin)])
+                f = 1 + rng.choice((-1, 1)) * rng.uniform(0.002, 0.008)
+                p.sid, p.rng = sup, rng
+                p.quote = {**p.quote, "unit_price": round(p.quote["unit_price"] * f, 2)}
+                p.floor_v *= f
+            else:
+                p = build(case, sup, cw, rng, rec)
             self.personas[(s["id"], sup)] = p
             th["standard"] = dict(p.standard)
             th["opening"] = p.quote["unit_price"]
@@ -289,6 +298,16 @@ def variants(cases, world):
         c.update(case_id=f"{cid}n", base_case_id=cid, suppliers=[new], trigger_doc=None, synthetic_suppliers=True,
                  refs=[r for r in base.get("refs") or [] if not r.startswith(("doc:", "ctr:", "sc:"))],
                  title=base["title"] + " (new supplier)")  # fmt: skip
+        out[c["case_id"]] = c
+    # two bids alike (announced for the final): an RFQ whose second bidder is its first one's twin
+    for cid in ("case:P05", "case:P06", "case:D02"):
+        base = cases.get(cid)
+        if not base:
+            continue
+        c = copy.deepcopy(base)
+        a, b = base["suppliers"][:2]
+        c.update(case_id=f"{cid}t", base_case_id=cid, suppliers=[a, b], twins={b: a}, synthetic_suppliers=True,
+                 title=base["title"] + " (two bids alike)")  # fmt: skip
         out[c["case_id"]] = c
     for cid, goal in (("case:P04", "stabilise"), ("case:P08", "routine"), ("case:P05", "secure_supply")):
         base = cases.get(cid)

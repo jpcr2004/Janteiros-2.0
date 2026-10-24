@@ -14,13 +14,15 @@ compares), sheets are chosen by our C (what scores):
   reaches our C-minimum; the close takes the cheapest standing sheet that passes the gate; RFQ
   bidders that cannot beat the best standing sheet are pruned."""
 
+import base64
 import math
 import re
 
+from .. import flags
 from ..econ.cost import c_alt, cost, gate, musts_ok, price_for_cost, price_slope, relationship_goal
 from ..econ.optimise import Package, at_cost, at_value, relationship_optimum
 from ..econ.supplier import make_est, value
-from ..econ.terms import complete, same_terms
+from ..econ.terms import allowed, complete, same_terms
 from ..features import enabled
 from ..model.profile import prior
 from ..model.supplier import next_concession, view
@@ -31,6 +33,13 @@ from .trades import signature as trade_signature
 ASK_PAYMENT = re.compile(r"faster payment|pay(ing)? earlier|shorter payment|payment (term|target)s? of|cash", re.I)
 ASK_VOLUME = re.compile(r"volume|commit", re.I)
 ASK_FORECAST = re.compile(r"forecast", re.I)
+# a request to see the volume data (P02, P07, P08, P11, P18 real: "please provide the corresponding
+# forecast data so we can verify this volume", "Which figures is that based on? Please send us the data")
+ASK_PROOF = re.compile(
+    r"forecast data|planning data|verif\w* (this|the|your|that)? ?(volume|figure|forecast|quantit)|substantiat"
+    r"|send us the data|(provide|share|send)\b[^.?!]{0,40}\b(data|forecast|figures|schedule)|which figures",
+    re.I,
+)
 MIN_MOVE = 0.0015  # our smallest move, share of price (a move under 0.1 % made suppliers go final)
 STAND_OFF = 0.002  # stay this far under its standing price
 STOP_GAP = 0.004  # accept its standing sheet once our gap is under this share of price
@@ -53,6 +62,7 @@ class Side:
         self.c_min = None
         self.v_min = None  # relationship goals: its value at our C-minimum on its terms
         self.stop_reason = None
+        self.forecast_sent = False
         self.kept = 0  # rounds we kept our structure after it put its own terms back
 
 
@@ -89,6 +99,7 @@ class Negotiator(Policy):
                            hedged="hedged" in p.traits and p.owner != "distributor"
                            and self.case.get("type") != "raw_material")  # fmt: skip
             side = self.sides[sid] = Side(p, est)
+            side.forecast_sent = any(m.get("attachments") for m in t.ours)
             self.refresh(t)
             if resumed:
                 side.held = len(side.view.ours) >= 2
@@ -404,7 +415,54 @@ class Negotiator(Policy):
                 sane = terms["unit_price"] >= 0.92 * best.price
                 if c <= best.c + 0.5 and sane and musts_ok(self.case, terms, t.std):
                     out.append(Package(terms, c, value(self.case, terms, side.est)))
+        if flags.on("PROBE") and len(out) < 3:
+            k = self.probe(t, best, close)
+            if k is not None and not any(same_terms(k.terms, o.terms, self.case) for o in out):
+                out.append(k)
         return out[:3]
+
+    def plain_ok(self, t, pkgs):
+        """The sheets the validator lets through: it judges C without our relationship estimate,
+        against the alternative and its standing sheet (a sheet held from an earlier round, or one
+        priced with that estimate, can fail there; stress P08x11, P01x28)."""
+        alt = self.alt - max(1.0, 0.0002 * self.alt) if math.isfinite(self.alt) else math.inf
+        st = t.standing[1]
+        lim = min(alt, cost(self.case, st, t.std) - 0.01 if st else math.inf)
+        return [k for k in pkgs if cost(self.case, k.terms, t.std) < lim]
+
+    def probe(self, t, best, close=False):
+        """Round 1: the main sheet with one field moved to the value best for us, priced to cost us
+        the same. Our value model says the supplier would not take it; if that model is wrong (P10
+        real: the best deal had lead time 42 where our capacity model kept 56), its answer shows it.
+        Only a field worth at least 1 % of our C."""
+        side = self.sides[t.sid]
+        best_gain, pick = 0.0, None
+        for f in self.case["negotiable"]:
+            if f in ("unit_price", "volume_per_year", "contract_months", "index_clause"):
+                continue  # security and risk terms: our model of those is not a cash guess
+            for opt in allowed(self.case, f, t.std):
+                if opt == best.terms.get(f):
+                    continue
+                terms = {**best.terms, f: opt}
+                if not musts_ok(self.case, terms, t.std):
+                    continue
+                gain = best.c - cost(self.case, terms, t.std, self.est(t))
+                # equal gain: the smaller step from our main sheet (lead 42, not 35, when we need 42)
+                near = isinstance(opt, int | float) and pick is not None and pick.get(f) is not None \
+                    and abs(opt - best.terms[f]) < abs(pick[f] - best.terms[f])
+                if gain > best_gain + 1.0 or (abs(gain - best_gain) <= 1.0 and near):
+                    best_gain, pick = gain, terms
+        if pick is None or best_gain < 0.01 * abs(best.c):
+            return None
+        p = price_for_cost(self.case, pick, t.std, best.c, self.est(t))
+        if not p:
+            return None
+        terms = {**pick, "unit_price": p}
+        terms = terms if close else self.under_next(t, Package(terms, 0.0, 0.0)).terms
+        c = cost(self.case, terms, t.std, self.est(t))
+        if c > best.c + 0.5 or terms["unit_price"] > 1.08 * best.price:
+            return None
+        return Package(terms, c, value(self.case, terms, side.est))
 
     def next_move(self, t, budget):
         self.refresh(t)
@@ -482,10 +540,16 @@ class Negotiator(Policy):
                     asks=sorted(side.asks),
                     sheets=[{"terms": k.terms, "c": k.c, "v": k.v} for k in extras],
                 )
+        if flags.on("PROBE"):
+            sheets = self.plain_ok(t, sheets)
+            if not sheets:
+                return None
         mv = Move("send", t.sid, sheets=[k.terms for k in sheets], claims=self.claims_for(t), reason=reason,
-                  tone="first" if not t.ours else ("close" if close else "counter"), points=self.answers(t))  # fmt: skip
+                  tone="first" if not t.ours else ("close" if close else "counter"),
+                  points=self.answers(t, [k.terms for k in sheets]))  # fmt: skip
         if len(t.ours) == 1:
             mv.ask = "What would you need from us to move further?"
+        self.attach_proof(t, mv)
         self.log.emit("plan", supplier_id=t.sid, round=t.rounds_used + 1, target_v=target, reason=reason,
                       sheets=[{"terms": k.terms, "c": k.c, "v": k.v} for k in sheets], standing_c=v.standing_c,
                       standing_v=v.standing_v, floor_c=self.floor_c(t), cum_gap=v.cum_gap, ratio=v.ratio,
@@ -504,8 +568,10 @@ class Negotiator(Policy):
             return None
         self.log.emit("plan", supplier_id=t.sid, round=t.rounds_used + 1, reason=f"ceiling sheet ({why})",
                       sheets=[{"terms": pkgs[0].terms, "c": pkgs[0].c, "v": pkgs[0].v}])  # fmt: skip
-        return Move("send", t.sid, sheets=[pkgs[0].terms], claims=self.claims_for(t), tone="close",
-                    reason=f"ceiling sheet ({why})", points=self.answers(t))  # fmt: skip
+        mv = Move("send", t.sid, sheets=[pkgs[0].terms], claims=self.claims_for(t), tone="close",
+                  reason=f"ceiling sheet ({why})", points=self.answers(t, [pkgs[0].terms]))  # fmt: skip
+        self.attach_proof(t, mv)
+        return mv
 
     def closing_due(self, t):
         side, v = self.sides[t.sid], self.sides[t.sid].view
@@ -531,9 +597,11 @@ class Negotiator(Policy):
         sheets = [pkgs[0]] + [k for k in pkgs[1:2] if not same_terms(k.terms, pkgs[0].terms, self.case)]
         self.log.emit("plan", supplier_id=t.sid, round=t.rounds_used + 1, reason="trade on terms: frozen price",
                       sheets=[{"terms": k.terms, "c": k.c, "v": k.v} for k in sheets])  # fmt: skip
-        return Move("send", t.sid, sheets=[k.terms for k in sheets], claims=self.claims_for(t),
-                    reason="trade on terms: frozen price", tone="trade", points=self.answers(t),
-                    ask="We can talk about the terms instead: would one of these packages work for you?")  # fmt: skip
+        mv = Move("send", t.sid, sheets=[k.terms for k in sheets], claims=self.claims_for(t),
+                  reason="trade on terms: frozen price", tone="trade", points=self.answers(t, [k.terms for k in sheets]),
+                  ask="We can talk about the terms instead: would one of these packages work for you?")  # fmt: skip
+        self.attach_proof(t, mv)
+        return mv
 
     def claims_for(self, t):
         if self.claim_bank is None:
@@ -547,9 +615,35 @@ class Negotiator(Policy):
             self.log.emit("error", where="claims", supplier_id=t.sid, error=repr(e)[:300])
             return []
 
-    def answers(self, t):
+    def answers(self, t, sheets=None):
         side = self.sides[t.sid]
         body = t.last.get("body") or ""
+        if not flags.on("HONEST_ANSWERS"):
+            return self._answers_baseline(t, side, body)
+        out = []
+        fixed = self.case.get("fixed_terms") or {}
+        if ASK_VOLUME.search(body) and "volume_per_year" in fixed:
+            side.asks.add("volume")
+            out.append(f"Our need under this contract is {fixed['volume_per_year']} units a year.")
+        if ASK_PAYMENT.search(body):
+            side.asks.add("payment")
+            _, st = t.standing
+            mine = (sheets or [None])[0] or {}
+            if "payment_days" in self.case["negotiable"]:
+                theirs = complete(self.case, st or {}, t.std).get("payment_days")
+                if mine.get("payment_days") is not None and theirs is not None and mine["payment_days"] < theirs:
+                    out.append(f"Our proposal shortens the payment term to {mine['payment_days']} days net.")
+            elif fixed.get("payment_days") is not None:
+                # say so, rather than leave it to guess (P11 real: it waited for a payment offer
+                # that could not come and froze its price)
+                out.append(f"The payment term is fixed at {fixed['payment_days']} days net for this contract and "
+                           "is not part of this negotiation.")  # fmt: skip
+        if ASK_FORECAST.search(body) and not any(x.startswith("Our need under") for x in out):
+            side.asks.add("forecast")
+            out.append(f"Our planning covers {self.case['buyer']['need_per_year']} units a year over the term.")
+        return out
+
+    def _answers_baseline(self, t, side, body):
         out = []
         fixed = self.case.get("fixed_terms") or {}
         if ASK_VOLUME.search(body) and "volume_per_year" in fixed:
@@ -574,6 +668,44 @@ class Negotiator(Policy):
             side.asks.add("volume_commitment")
         if ASK_FORECAST.search(body):
             side.asks.add("forecast_proof")
+
+    def attach_proof(self, t, mv):
+        att = self.forecast_proof(t)
+        if att:
+            mv.attachments.append(att)
+            mv.points.append("Attached is our latest demand forecast for this part, month by month, as planned "
+                             "in our system (demand-forecast.csv).")  # fmt: skip
+            self.log.emit("plan", supplier_id=t.sid, attachment=att["name"], reason="forecast data on request")
+
+    def forecast_proof(self, t):
+        """A CSV of our latest demand forecast for the case's parts, once per supplier, when it asks
+        to see the volume data. Rows straight from the data package, no IDs, nothing else claimed."""
+        side = self.sides[t.sid]
+        if not flags.on("FORECAST") or side.forecast_sent or self.world is None:
+            return None
+        if not ASK_PROOF.search(t.last.get("body") or ""):
+            return None
+        rows = []
+        try:
+            for part in self.case.get("parts") or []:
+                snaps = sorted(self.world.rows("forecasts", part_id=part), key=lambda r: str(r.get("snapshot_month")))
+                if not snaps:
+                    continue
+                last = snaps[-1]
+                lines = sorted(self.world.rows("forecast_lines", fc_id=last["id"]), key=lambda r: str(r.get("target_month")))
+                uom = last.get("uom") or "pc"
+                for r in lines:
+                    rows.append(f"{part.split(':', 1)[-1]},{last['snapshot_month']},{r['target_month']},{int(float(r['qty']))},{uom}")
+                rows.append(f"{part.split(':', 1)[-1]},{last['snapshot_month']},next 12 months,"
+                            f"{int(float(last['qty_next_12m']))},{uom}")  # fmt: skip
+        except Exception as e:  # noqa: BLE001 - no attachment rather than no message
+            self.log.emit("error", where="forecast", supplier_id=t.sid, error=repr(e)[:300])
+            return None
+        if not rows:
+            return None
+        csv = "part,forecast_month,delivery_month,quantity,unit\n" + "\n".join(rows) + "\n"
+        side.forecast_sent = True
+        return {"name": "demand-forecast.csv", "type": "csv", "content_b64": base64.b64encode(csv.encode()).decode()}
 
     def keepalive_move(self, t):
         return Move("send", t.sid, ask="We are reviewing your offer with our team and will come back to you "
@@ -624,6 +756,11 @@ class Negotiator(Policy):
                       fallback=out is None, read=out)  # fmt: skip
         return out
 
+    def twin(self, a, b):
+        """Two bidders whose quotes cost us within 3 % of each other."""
+        qa, qb = self.sides[a.sid].view.quote_c, self.sides[b.sid].view.quote_c
+        return math.isfinite(qa) and math.isfinite(qb) and abs(qa - qb) <= 0.03 * min(abs(qa), abs(qb))
+
     # -- the close ----------------------------------------------------------------------------
     def close_decision(self, threads, final=False):
         for t in threads.values():
@@ -642,7 +779,14 @@ class Negotiator(Policy):
                 if o is tb or len(self.sides[o.sid].view.theirs) < 2:
                     continue  # job shops drop 12-15 % on their first counter: hear it first
                 fo = self.floor_c(o)
-                if fo >= c_best - 1e-6:
+                margin = 0.0
+                if flags.on("TWINS") and self.twin(o, tb):
+                    # two bids alike (announced for the final): its floor is a guess from two or
+                    # three steps, so keep it bidding unless it is clearly out
+                    if len(self.sides[o.sid].view.theirs) < 3:
+                        continue
+                    margin = 0.015 * abs(c_best)
+                if fo >= c_best + margin - 1e-6:
                     o.pruned = True
                     self.log.emit("model_update", supplier_id=o.sid, pruned=True, floor_c=fo, best_c=c_best)
             active = [t for t in active if not t.pruned]

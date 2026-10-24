@@ -1,6 +1,8 @@
 """The one gate right before every send. Returns a list of problems; an empty list means the
 message may go. The runner never sends a message with problems: it falls back to a safer one."""
 
+import base64
+import binascii
 import math
 import re
 
@@ -42,6 +44,23 @@ def check_sheet(case, terms, std, standard_ok=True):
             out.append(f"{f}={v!r} not in term_options")
     if not out and not musts_ok(case, terms, std):
         out.append("breaks a must-have on its closing terms")
+    return out
+
+
+def check_attachment(a):
+    """Our attachments: data code wrote, in a type the arena reads, small, and citing no IDs (an ID
+    there would be a claim nobody checked)."""
+    if not isinstance(a, dict) or not a.get("name") or a.get("type") not in ("md", "csv", "json"):
+        return ["needs a name and type md, csv or json"]
+    try:
+        raw = base64.b64decode(a.get("content_b64") or "", validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError, ValueError):
+        return ["content_b64 is not base64 UTF-8"]
+    out = []
+    if not raw.strip() or len(raw) > 20000:
+        out.append("empty or over 20000 characters")
+    if ID_RE.search(raw):
+        out.append("cites a data ID")
     return out
 
 
@@ -95,6 +114,8 @@ def validate(case, msg, thread=None, *, claims=(), known_ids=None, allow_above_a
         problems.append("more than 20 refs")
     if len(msg.get("attachments") or []) > MAX_ATTACH:
         problems.append("more than 5 attachments")
+    for a in msg.get("attachments") or []:
+        problems += [f"attachment {a.get('name')!r}: {p}" for p in check_attachment(a)]
     if len(claims) > MAX_CLAIMS:
         problems.append("more than 3 checkable claims")
     claimed = {r for c in claims for r in c.get("refs", [])}

@@ -98,4 +98,5 @@ def compose(case, t, move, writer=None, budget=0.0, log=None):
         "body": "\n".join(lines),
         "term_sheets": [{"terms": dict(s)} for s in move.sheets],
         "refs": refs[:20],
+        **({"attachments": list(move.attachments)} if move.attachments else {}),
     }

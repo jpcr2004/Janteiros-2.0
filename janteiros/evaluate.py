@@ -13,6 +13,7 @@ from pathlib import Path
 import httpx
 from fastapi.testclient import TestClient
 
+from . import flags
 from .arena.client import Arena
 from .events.log import EventLog, git_commit
 
@@ -118,13 +119,16 @@ def count_events(log):
     return timeouts, fallbacks, blocks
 
 
-def main(note="", quick=False, suite="all", agent="jt"):
+def main(note="", quick=False, suite="all", agent="jt", allow_dirty=False):
     if agent == "old":
         from .old_agent import main as old_main
 
         return old_main(note=note, quick=quick, suite=suite)
-    log = EventLog(meta={"mode": "eval", "agent": agent, "suite": suite})
     commit, dirty = git_commit()
+    if dirty and not allow_dirty:
+        print("refusing to evaluate uncommitted code: commit first (or pass --allow-dirty for a scratch run)")
+        return 2
+    log = EventLog(meta={"mode": "eval", "agent": agent, "suite": suite})
     suites = []
     if suite in ("all", "kit"):
         suites.append(kit_suite())
@@ -144,6 +148,7 @@ def main(note="", quick=False, suite="all", agent="jt"):
         "model": None if os.environ.get("JT_NO_LLM") else os.environ.get("LLM_MODEL", "claude-opus-5-5"),
         "effort": None if os.environ.get("JT_NO_LLM") else os.environ.get("LLM_EFFORT", "low"),
         "note": note,
+        "flags": flags.state(),
         "suites": {},
         "timeouts": timeouts,
         "llm_fallbacks": fallbacks,
