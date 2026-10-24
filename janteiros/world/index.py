@@ -12,6 +12,7 @@ import threading
 from functools import cached_property
 from pathlib import Path
 
+from .. import flags
 from ..model.profile import traits_in
 
 RELEASE = "release-sunday"
@@ -155,6 +156,7 @@ class CaseWorld:
                 prof["traits"].add("cash_need")  # a worsening credit index (higher is worse)
         sup = self.rows("suppliers", id=sid)
         if sup:
+            prof["country"] = sup[0].get("country") or None
             pct, days = _f(sup[0].get("skonto_pct")), _f(sup[0].get("skonto_days"))
             pay = _f(sup[0].get("payment_days")) or 30
             if pct and days is not None and pay > days:
@@ -167,12 +169,27 @@ class CaseWorld:
             prof["ppm"] = _f(sc[-1].get("ppm"))
             prof["otd"] = _f(sc[-1].get("otd_pct"))
         for part in self.parts:
+            own = generic = None
             for r in self.rows("should_cost", part_id=part):
                 if r.get("supplier_id") in (None, "", sid):
                     prof["should_cost"] = _f(r.get("unit_cost"))
+                    if r.get("supplier_id") == sid:
+                        own = r
+                    else:
+                        generic = r
+            if flags.on("FC_V2") and (own or generic):
+                # the row modelled on this supplier's own plant first (error about 5 %), else the
+                # German cost base (error 5-15 %, needs the country factor): company.md
+                r = own or generic
+                prof["should_cost"] = _f(r.get("unit_cost"))
+                prof["sc_kind"] = "own" if own else "generic"
+                prof["sc_base"] = r.get("cost_base") or "DE"
             fid = f"cost:{part.split(':', 1)[1]}"
             if prof.get("should_cost") is None and self.fact(fid):
-                prof["should_cost"] = _f(self.fact(fid).get("unit_cost"))
+                f = self.fact(fid)
+                prof["should_cost"] = _f(f.get("unit_cost"))
+                prof["sc_kind"] = "own" if (_f(f.get("confidence_pct")) or 99) <= 5 else "generic"
+                prof["sc_base"] = f.get("cost_base") or "DE"
             for r in self.rows("cost_drivers", part_id=part):
                 prof["drivers"].append((r.get("series_id"), _f(r.get("weight")) or 0.0))
         if len(self.parts) > 1:

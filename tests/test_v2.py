@@ -123,3 +123,23 @@ def test_flags_all_off(monkeypatch):
     assert not any(flags.state().values())
     monkeypatch.setenv("JT_X_TWINS", "1")
     assert flags.on("TWINS") and not flags.on("FORECAST")
+
+
+def test_full_cost_from_should_cost():
+    from janteiros.model.profile import Prior
+    from janteiros.policy.negotiator import full_cost_from
+
+    own = Prior(should_cost=100.0, sc_kind="own", country="PL")
+    assert abs(full_cost_from(own, 120.0) - 98.8) < 1e-9  # its own plant: no country factor
+    gen = Prior(should_cost=100.0, sc_kind="generic", sc_base="DE", country="PL")
+    assert abs(full_cost_from(gen, 100.0) - (0.5 * 98.8 * 0.825 + 0.5 * 92.0)) < 1e-9
+    de = Prior(should_cost=100.0, sc_kind="generic", sc_base="DE", country="DE")
+    assert full_cost_from(de, 100.0) > full_cost_from(gen, 100.0)
+
+
+def test_profile_prefers_the_own_plant_row():
+    from janteiros.runner.play import world
+
+    w = world().for_case(CASES["case:P02"])
+    prof = w.profile("sup:70510", CASES["case:P02"])
+    assert prof["sc_kind"] == "own" and abs(prof["should_cost"] - 374.95) < 0.01 and prof["country"] == "DE"

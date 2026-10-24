@@ -132,8 +132,11 @@ class Negotiator(Policy):
             return
         # full cost against the quote seen on real cases: D01 0.91, P03 0.91, P01 0.94, P02 0.995
         fc = vals[0] * 0.92
-        if side.prior.should_cost:
-            fc = min(vals[0] * 0.995, 0.98 * side.prior.should_cost)
+        sc = side.prior.should_cost
+        if sc and flags.on("FC_V2"):
+            fc = min(vals[0] * 0.995, full_cost_from(side.prior, vals[0]))
+        elif sc:
+            fc = min(vals[0] * 0.995, 0.98 * sc)
         fc = min(fc, min(vals))
         est.full_cost = round(fc, 4) if fc > 0 else None
         _, st = t.standing
@@ -755,6 +758,23 @@ class Negotiator(Policy):
         if not active:
             return Move("walk", live[0].sid if live else None, reason="nothing passes the gate")
         return None
+
+
+# Full cost against Germany (company.md: AT and CH about 1.0-1.1, CZ, PL and HU 0.8-0.85, TR 0.75, CN 0.7)
+COUNTRY_COST = {"DE": 1.0, "AT": 1.05, "CH": 1.05, "CZ": 0.825, "PL": 0.825, "HU": 0.825, "SK": 0.825, "TR": 0.75,
+                "CN": 0.7}  # fmt: skip
+
+
+def full_cost_from(prior, quote_cash):
+    """Its full cost from the should-cost. A row modelled on its own plant: the true full cost sat at
+    0.986-0.992 of it on all three real cases (P01, P02, P03; the old 0.98 erred -0.6 to -1.2 %).
+    A cost-base row (error 5-15 %): moved to its country, then averaged with the quote prior, which
+    is as good a guess (true full cost 0.90-0.99 of the quote)."""
+    sc = prior.should_cost
+    if prior.sc_kind != "generic":
+        return 0.988 * sc
+    f = COUNTRY_COST.get(prior.country or "DE", 1.0) / COUNTRY_COST.get(prior.sc_base or "DE", 1.0)
+    return 0.5 * 0.988 * sc * f + 0.5 * 0.92 * quote_cash
 
 
 def _answered_last(t):

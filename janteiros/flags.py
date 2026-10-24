@@ -4,7 +4,7 @@ the baseline behaviour (tests/test_golden.py checks that on every recorded real 
 
 import os
 
-NAMES = ("WRITER_GUARD", "HONEST_ANSWERS", "READER_NO_ECON", "FORECAST", "TWINS", "SHEET_CHECK", "PROBE")
+NAMES = ("WRITER_GUARD", "HONEST_ANSWERS", "READER_NO_ECON", "FORECAST", "TWINS", "SHEET_CHECK", "FC_V2", "PROBE")
 # off unless asked for: PROBE cost P18 0.677 -> 0.610 on the real arena (fba9c63): the distributor
 # countered on the probe's higher price and anchored there
 OFF_BY_DEFAULT = {"PROBE"}

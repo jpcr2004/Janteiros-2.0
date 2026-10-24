@@ -65,6 +65,9 @@ class Prior:
     # (P08/P18 first counters 5.30-5.52 at 36 months against 5.70-5.90 at 24)
     security: float = 0.0
     should_cost: float | None = None
+    sc_kind: str | None = None  # "own": modelled on its plant; "generic": a cost base, see sc_base
+    sc_base: str | None = None
+    country: str | None = None
     ppm_real: float | None = None
     clause_moves: dict = field(default_factory=dict)
     drivers: list = field(default_factory=list)
@@ -82,6 +85,7 @@ def prior(case, sid, opening=None, world_profile=None):
     p.owner = wp.get("owner_type")
     p.traits |= set(wp.get("traits") or [])
     p.should_cost = wp.get("should_cost")
+    p.sc_kind, p.sc_base, p.country = wp.get("sc_kind"), wp.get("sc_base"), wp.get("country")
     p.ppm_real = wp.get("ppm")
     p.clause_moves = dict(wp.get("clause_moves") or {})
     p.drivers = list(wp.get("drivers") or [])
