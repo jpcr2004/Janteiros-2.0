@@ -20,3 +20,14 @@ def test_trivial_policy_ends_valid(arena, kit_sim, log, cid):
         assert math.isfinite(c_alt(case))  # walk only with an alternative
     kinds = {e["kind"] for e in read_events(log.run_id, log.dir.parent)}
     assert {"case_open", "quote", "result"} <= kinds
+
+
+def test_report_diagnoses_a_played_case(arena, kit_sim, log, monkeypatch):
+    from janteiros import report
+
+    monkeypatch.setattr(report, "RUNS", log.dir.parent)
+    monkeypatch.setattr("janteiros.report.read_events", lambda rid: read_events(rid, log.dir.parent))
+    r = play_case(arena, kit_sim.cases["case:S01"], log)
+    assert (log.dir / "sessions").is_dir() and list((log.dir / "sessions").glob("*.json"))
+    text, out = report.diagnose(log.run_id)
+    assert "case:S01" in text and f"{r['score']:.3f}" in text and out.is_file()

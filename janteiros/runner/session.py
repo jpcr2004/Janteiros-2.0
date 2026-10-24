@@ -3,6 +3,7 @@ a time: to the thread whose clock has run longest among those the policy wants t
 keepalive to a waiting thread before its 60 s run out. Every send passes the validator; a refused
 or late message is recovered from the arena's own thread view. Close before a wave's cap."""
 
+import json
 import re
 import time
 
@@ -395,12 +396,30 @@ class CaseRunner:
             trace = (st.get("result") or {}).get("trace")
             result.setdefault("end_reason", st.get("end_reason"))
             result["rounds"] = st.get("rounds")
+            self.save_session(st)
         except Exception:  # noqa: BLE001
             pass
         self.log.emit("result", result={k: v for k, v in result.items() if k != "trace"},
                       reasons=_reasons(trace), timeouts=sum(t.timeouts for t in self.threads.values()))  # fmt: skip
         result["session_id"] = self.session_id
         return result
+
+    def save_session(self, st):
+        """The arena's full session (trace with the supplier's reasons) and, outside the final,
+        its back office, next to our events: runs/<run>/sessions/<case>_<session>.json."""
+        root = getattr(getattr(self.log, "log", None), "dir", None)
+        if root is None:
+            return
+        out = {"session": st, "backoffice": None}
+        if not self.final:  # the back office opens after the final only
+            try:
+                out["backoffice"] = self.arena.backoffice(self.session_id)
+            except Exception:  # noqa: BLE001
+                pass
+        d = root / "sessions"
+        d.mkdir(exist_ok=True)
+        name = f"{self.case['case_id'].replace(':', '_')}_{self.session_id}.json"
+        (d / name).write_text(json.dumps(out, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
 
 
 def _reasons(trace):

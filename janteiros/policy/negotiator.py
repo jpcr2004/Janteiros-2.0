@@ -95,6 +95,7 @@ class Negotiator(Policy):
                     log.emit("error", where="claims", supplier_id=sid, error=repr(e)[:300])
             v = side.view
             log.emit("plan", supplier_id=sid, owner=p.owner, traits=sorted(p.traits), rate=p.rate, room=p.room,
+                     first_drop=p.first_drop,
                      patience=p.patience, full_cost=est.full_cost, should_cost=p.should_cost, quote_c=v.quote_c,
                      quote_v=v.quote_v, c_alt=self.alt, floor_c=self.floor_c(t), c_min=side.c_min, notes=p.notes,
                      claims=self.claim_bank.summary(sid) if self.claim_bank is not None else None)  # fmt: skip

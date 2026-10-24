@@ -12,9 +12,7 @@ STATS: dict = {}  # role -> {"calls", "ok", "fallback", "seconds"}
 
 
 def enabled():
-    return not os.environ.get("JT_NO_LLM") and bool(
-        os.environ.get("LLM_API_KEY")
-    )
+    return not os.environ.get("JT_NO_LLM") and bool(os.environ.get("LLM_API_KEY"))
 
 
 _client = None

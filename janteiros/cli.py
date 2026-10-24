@@ -53,6 +53,8 @@ def main(argv=None):
     e.add_argument("--quick", action="store_true", help="fewer seeds")
     e.add_argument("--suite", default="all", choices=["all", "kit", "sim2"])
     e.add_argument("--agent", default="jt", choices=["jt", "old", "naive"])
+    rp = sub.add_parser("report", help="diagnose a run (default: the latest play/run)")
+    rp.add_argument("run_id", nargs="?")
     u = sub.add_parser("ui", help="serve the UI")
     u.add_argument("--port", type=int, default=8765)
     s = sub.add_parser("sim2", help="serve the calibrated supplier simulator")
@@ -88,6 +90,10 @@ def main(argv=None):
         from .evaluate import main as run_eval
 
         return run_eval(note=args.note, quick=args.quick, suite=args.suite, agent=args.agent)
+    elif args.cmd == "report":
+        from .report import main as report
+
+        return report(args.run_id)
     elif args.cmd == "ui":
         from .ui_server import serve
 
