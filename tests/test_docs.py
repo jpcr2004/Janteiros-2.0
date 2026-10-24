@@ -35,3 +35,17 @@ def test_parse_value_numbers():
     assert parse_value("unit_price", "1,234.50") == (True, 1234.5)
     assert parse_value("payment_days", "none") == (True, None)
     assert parse_value("payment_days", "soon")[0] is False
+
+
+def test_real_arena_quote_pdfs():
+    import pathlib
+
+    from janteiros.arena.docs import read_document
+
+    fx = pathlib.Path(__file__).parent / "fixtures"
+    p01 = quote_terms(read_document("quote.pdf", (fx / "quote-offer-70110-0.pdf").read_bytes()))
+    assert p01["stated"] == {"unit_price": 138.55, "effective_date": "2026-11-01"}
+    assert p01["standard"] == {"payment_days": 30, "ppm_commitment": 900, "chargeback_eur_per_complaint": 0.0}
+    assert p01["fixed"]["index_clause"] is None and p01["fixed"]["incoterm"] == "FCA"
+    d02 = quote_terms(read_document("quote.pdf", (fx / "quote-offer-DEMO-C1-0.pdf").read_bytes()))
+    assert d02["standard"]["effective_date"] is None  # the kit returns the string "none" here
