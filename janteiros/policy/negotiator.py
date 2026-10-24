@@ -506,7 +506,7 @@ class Negotiator(Policy):
                 sheets = [k for k in sheets if k.c < self.alt]
                 if not sheets:
                     return None
-        if flags.on("PROBE"):
+        if flags.on("SHEET_CHECK"):
             sheets = self.plain_ok(t, sheets)
             if not sheets:
                 return None
