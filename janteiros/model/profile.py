@@ -30,12 +30,33 @@ OWNER_RATE = {"group": 0.05, "private": 0.07, "family": 0.075, "founder": 0.13, 
 OWNER_ROOM = {"group": 0.045, "private": 0.06, "family": 0.065, "founder": 0.16, "distributor": 0.05}
 
 
+# Total concession from the quote seen per case type (records: P18 -18 %, P08 -13 %, P05 -23 %,
+# D01 -8 %, P01 -6 %, P07 -7 %, P11 -3 %, P10 -2 %, renewals 0.5-1.5 %).
+TYPE_ROOM = {"rfq": 0.15, "raw_material": 0.13, "bundling": 0.08, "price_increase": 0.06, "renewal": 0.02,
+             "capacity": 0.03, "quality": 0.04}  # fmt: skip
+# Its first counter, share of its quote (distributors 10 %, job shops 13-17 %, others 2-4 %).
+FIRST_DROP = {"rfq": 0.06, "raw_material": 0.09, "bundling": 0.035, "price_increase": 0.03, "renewal": 0.01,
+              "capacity": 0.015, "quality": 0.02}  # fmt: skip
+
+
+def type_room(case, opening):
+    """A price letter overshoots the cost drivers: most of the asked increase is room."""
+    room = TYPE_ROOM.get(case.get("type"), 0.06)
+    cur = case["buyer"].get("current_unit_price")
+    terms = ((opening or {}).get("term_sheets") or [{}])[0].get("terms") or {}
+    q = terms.get("unit_price")
+    if case.get("type") == "price_increase" and cur and q and q > cur:
+        room = max(0.03, 0.75 * (q / cur - 1) / (q / cur))
+    return room
+
+
 @dataclass
 class Prior:
     owner: str | None = None
     traits: set = field(default_factory=set)
     rate: float = 0.07
     room: float = 0.06  # expected total concession, share of quote price
+    first_drop: float = 0.025  # expected first counter, share of quote price
     ratio: float = 0.5  # its move / our move
     patience: float = 0.36  # cumulative gap at which it goes final
     overtime: float = 0.0005  # share of price per day faster
@@ -75,7 +96,14 @@ def prior(case, sid, opening=None, world_profile=None):
         p.rate = max(p.rate, wp["rate"])
     if "cash_need" in p.traits:
         p.rate += 0.05
-    p.room = OWNER_ROOM.get(p.owner, 0.06)
+    rfq = case.get("type") == "rfq" and len(case.get("suppliers") or []) > 1
+    owner_room = OWNER_ROOM.get(p.owner, 0.06)
+    if p.owner == "founder" and not rfq:
+        owner_room = 0.09  # the 16 % were job shops competing in an RFQ
+    p.room = max(owner_room, type_room(case, opening))
+    p.first_drop = FIRST_DROP.get(case.get("type"), 0.025)
+    if p.owner == "founder" and case.get("type") == "rfq":
+        p.first_drop = 0.13
     if "price_frozen" in p.traits:
         p.room, p.ratio = 0.005, 0.05
     if "approval" in p.traits:

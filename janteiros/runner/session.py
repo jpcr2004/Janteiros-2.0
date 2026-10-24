@@ -264,6 +264,12 @@ class CaseRunner:
         msg = self.policy.compose(t, move, budget)
         problems = self.check(t, msg, move)
         self.log.emit("validate", supplier_id=t.sid, ok=not problems, problems=problems, reason=move.reason)
+        bad = {int(m.group(1)) for p in problems if (m := re.match(r"sheet (\d+):", p))}
+        if problems and bad and all(re.match(r"sheet \d+:", p) for p in problems) and len(bad) < len(move.sheets):
+            move.sheets = [sh for i, sh in enumerate(move.sheets) if i not in bad]  # drop just those
+            msg = self.policy.compose(t, move, 0.0)
+            problems = self.check(t, msg, move)
+            self.log.emit("validate", supplier_id=t.sid, ok=not problems, problems=problems, reason="dropped sheets")
         if problems:
             move = self.policy.safe_move(t, problems)
             msg = self.policy.compose(t, move, 0.0)

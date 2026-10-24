@@ -7,6 +7,7 @@ import json
 import math
 import re
 import sqlite3
+import threading
 from functools import cached_property
 from pathlib import Path
 
@@ -28,12 +29,24 @@ class World:
         if self.db:
             self.db.row_factory = sqlite3.Row
         self._tables: dict = {}
+        self._lock = threading.RLock()
+
+    PRELOAD = ("suppliers", "supplier_intel", "documents", "news", "quotes", "scorecards", "should_cost",
+               "cost_drivers")  # fmt: skip
 
     @classmethod
     def load(cls, root):
-        return cls(root)
+        w = cls(root)
+        for name in cls.PRELOAD:  # before cases share it across threads
+            w.table(name)
+        _ = w.series
+        return w
 
     def table(self, name):
+        with self._lock:
+            return self._table(name)
+
+    def _table(self, name):
         if name not in self._tables:
             rows = []
             if self.db is not None:

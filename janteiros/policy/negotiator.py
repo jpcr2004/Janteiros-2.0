@@ -17,7 +17,7 @@ compares), sheets are chosen by our C (what scores):
 import math
 import re
 
-from ..econ.cost import c_alt, cost, gate, price_for_cost, price_slope, relationship_goal
+from ..econ.cost import c_alt, cost, gate, musts_ok, price_for_cost, price_slope, relationship_goal
 from ..econ.optimise import Package, at_cost, at_value, relationship_optimum
 from ..econ.supplier import make_est, value
 from ..econ.terms import complete, same_terms
@@ -33,6 +33,7 @@ STAND_OFF = 0.002  # stay this far under its standing price
 STOP_GAP = 0.004  # accept its standing sheet once our gap is under this share of price
 CLOSEOUT_ROUND = 5  # by then suppliers go final: offer its next counter on our best terms
 STEP = 0.25  # share of the gap we move per round (30 % beat 55 % and 1 %)
+FIRST_CAP = 0.016  # its first capped concession after the first counter, share of price (D01)
 
 
 class Side:
@@ -114,7 +115,9 @@ class Negotiator(Policy):
         if not vals:
             return
         sust = self.case["buyer"].get("sustainable_margin_pct") or 0
-        fc = vals[0] * (1 - (sust + 3) / 100)
+        # the charge is gentle for the first points below the sustainable margin (g^2/10), so a
+        # low estimate costs little while a high one stops us early (true: 0-10 % under the quote)
+        fc = vals[0] * (1 - (sust + 6) / 100)
         if side.prior.should_cost:
             fc = min(vals[0] * 0.995, 0.98 * side.prior.should_cost)
         fc = min(fc, min(vals))
@@ -175,9 +178,11 @@ class Negotiator(Policy):
             return "no price"
         if v.last_ours is not None:
             gap = v.rel(v.standing_v - v.last_ours)
-            if gap <= STOP_GAP:
+            gap_c = (v.standing_c - v.ours_c[-1]) / abs(v.standing_c) if v.ours_c and v.standing_c else 0.0
+            if gap <= STOP_GAP and gap_c <= 0.002:
                 return f"gap {gap:.4f} small"
-            if len(v.concessions) >= 2 and v.rel(v.standing_v - v.floor_v) < 0.0015:
+            real_move = len(v.our_moves) >= 1 and v.rel(v.our_moves[-1]) >= 0.003
+            if len(v.concessions) >= 3 and real_move and v.rel(v.standing_v - v.floor_v) < 0.0015:
                 return "its floor is reached"
             if v.cum_gap >= side.prior.patience * 0.9:
                 return f"patience used ({v.cum_gap:.2f})"
@@ -185,7 +190,7 @@ class Negotiator(Policy):
                 return "frozen after a trade"
             if side.closing and _answered_last(t):
                 return "answered our close-out"
-        if side.c_min is not None and v.standing_c <= side.c_min * (1 + 0.0005):
+        if t.ours and side.c_min is not None and v.standing_c <= side.c_min * (1 + 0.0005):
             return "its standing sheet is at our C-minimum"
         return None
 
@@ -224,7 +229,12 @@ class Negotiator(Policy):
         # on their first counter, so a held deep anchor works there (P05: 0.828)
         rfq = len(self.case.get("suppliers") or []) > 1
         share = 0.55 if (rfq and p.owner == "founder") else 0.3
-        rel = min(0.24, max(0.03, 1.25 * p.room + 0.01), p.patience * share)
+        # below the room it usually gives, and well below its expected first counter (a sheet at
+        # or above that counter gets `agreed` and freezes)
+        # it concedes about min(0.8 x our move, a shrinking cap) after its first counter: a gap of
+        # about 8 % behind that counter lets it give all its caps before the gap closes
+        rel = max(0.03, 1.1 * p.room + 0.01, p.first_drop + 0.085)
+        rel = min(0.25, rel, p.patience * share)
         return v.quote_v - rel * v.price, f"anchor {rel:.3f} under its quote"
 
     def target_v(self, t):
@@ -233,16 +243,44 @@ class Negotiator(Policy):
             return self.anchor_v(t)
         last = v.last_ours
         gap = v.standing_v - last
-        if not side.held and len(v.concessions) == 1 and v.first_drop >= 0.06:
+        hold_gap = v.rel(v.standing_v - last)
+        if (not side.held and len(v.concessions) == 1 and v.first_drop >= 0.06
+                and v.cum_gap + hold_gap < 0.8 * side.prior.patience):  # fmt: skip
             side.held = True
             return last, f"hold the anchor after a deep first drop ({v.first_drop:.3f})"
         side.held = True
-        k = STEP if v.cum_gap < side.prior.patience * 0.5 else 0.33
-        move = max(k * gap, MIN_MOVE * v.price)
+        # size the move to its concessions: it gives about 0.8 x our move up to a cap that shrinks
+        # by round, so move its last concession / 0.8 (a 1.6 % cap before we know); while it gives
+        # more than we move (ratio > 1), move as little as we may
+        r = v.ratio
+        if len(v.concessions) >= 2 and r is not None and r >= 1.0:
+            move = MIN_MOVE * v.price
+        elif len(v.concessions) >= 2:
+            move = max(0.0, v.concessions[-1]) / 0.8
+        else:
+            move = FIRST_CAP * v.price / 0.8
+        move = min(move, 0.45 * gap)
+        move = max(move, MIN_MOVE * v.price)
         ceiling = gap - 1.15 * self.nxt(t)  # stay under the counter it would make next
-        if ceiling > MIN_MOVE * v.price:
-            move = min(move, ceiling)
+        if ceiling < MIN_MOVE * v.price:
+            return None, "no room under its next counter"
+        move = min(move, ceiling)
         return last + move, f"move {v.rel(move):.4f} of price (gap {v.rel(gap):.4f})"
+
+    def agreeable(self, t):
+        """The least we must offer to be agreed: it agrees once our sheet reaches the counter it
+        would make next, standing - min(0.8 x our move, its cap); so move m with
+        m >= gap / 1.8 and m >= gap - cap (just gap - cap while it gives more than we move)."""
+        v = self.sides[t.sid].view
+        last = v.last_ours
+        if last is None:
+            return v.standing_v - self.nxt(t)
+        gap = max(0.0, v.standing_v - last)
+        cap = self.nxt(t)
+        r = v.ratio
+        m = gap - cap if (r is not None and r >= 1.0) else max(gap / 1.8, gap - cap)
+        m = max(m * 1.05, MIN_MOVE * v.price)
+        return min(last + m, v.standing_v - STAND_OFF * v.price)
 
     def caps(self, t, target):
         side, v = self.sides[t.sid], self.sides[t.sid].view
@@ -276,20 +314,31 @@ class Negotiator(Policy):
         terms = {**k.terms, "unit_price": p_cap}
         return Package(terms, cost(self.case, terms, t.std, self.est(t)), value(self.case, terms, side.est))
 
-    def sheets(self, t, pkgs, close=False):
-        """The cheapest package, plus the package on its own terms at the same C for us."""
+    def sheets(self, t, pkgs, target_v, close=False):
+        """After round 1 the main sheet keeps the supplier's current terms at our target value (a
+        genuine move in its eyes, whatever our value model says); the package cheapest for us at
+        that value rides along when it is clearly cheaper. Round 1: cheapest first, then its own
+        terms at the same C (that hedges our value model and shows what it prefers)."""
         side = self.sides[t.sid]
-        best = pkgs[0]
-        out = [best]
         _, st = t.standing
         full = complete(self.case, st, t.std)
+        best = pkgs[0]
+        if t.ours:
+            own = next((k for k in pkgs if same_terms(k.terms, full, self.case)), None)
+            if own is None:
+                return [best]
+            out = [own]
+            if not same_terms(best.terms, full, self.case) and best.c < own.c * (1 - 0.003):
+                out.append(best)
+            return out
+        out = [best]
         if not same_terms(best.terms, full, self.case):
             p = price_for_cost(self.case, full, t.std, best.c + 0.005, self.est(t))
             if p:
                 k = Package({**full, "unit_price": p}, 0.0, 0.0)
                 terms = k.terms if close else self.under_next(t, k).terms
                 c = cost(self.case, terms, t.std, self.est(t))
-                if c <= best.c + 0.5:
+                if c <= best.c + 0.5 and musts_ok(self.case, terms, t.std):
                     out.append(Package(terms, c, value(self.case, terms, side.est)))
         return out[:3]
 
@@ -307,19 +356,27 @@ class Negotiator(Policy):
         close = False
         if due := self.closing_due(t):
             side.closing = close = True
-            target, reason = v.standing_v - self.nxt(t), f"close-out at its next counter ({due})"
-            target = min(target, v.standing_v - STAND_OFF * v.price)
+            target, reason = self.agreeable(t), f"close-out at its next counter ({due})"
             if side.v_min is not None:
                 target = max(target, side.v_min)
         else:
             target, reason = self.target_v(t)
-            target = self.caps(t, target)
+            if target is None:  # no room to move without being agreed: move just enough to be
+                side.closing = close = True
+                target = self.agreeable(t)
+                reason = f"close-out at its next counter ({reason})"
+            else:
+                target = self.caps(t, target)
+        if v.last_ours is not None and target < v.last_ours:
+            target = v.last_ours  # never retract: a worse offer than our last reads as a step back
         pkgs = self.packages(t, target, close=close)
         if not pkgs and math.isfinite(self.alt):
             return self.ceiling_move(t, "no package below the alternative at that value")
         if not pkgs:
             return None
-        sheets = self.sheets(t, pkgs, close)
+        sheets = self.sheets(t, pkgs, target, close)
+        if v.last_ours is not None:
+            sheets = [k for k in sheets if k.v >= v.last_ours - 1e-6 * v.price] or sheets[:1]
         mv = Move("send", t.sid, sheets=[k.terms for k in sheets], claims=self.claims_for(t), reason=reason,
                   tone="first" if not t.ours else ("close" if close else "counter"), points=self.answers(t))  # fmt: skip
         if len(t.ours) == 1:
@@ -438,8 +495,8 @@ class Negotiator(Policy):
         if best:
             c_best, tb = best
             for o in active:
-                if o is tb:
-                    continue
+                if o is tb or len(self.sides[o.sid].view.theirs) < 2:
+                    continue  # job shops drop 12-15 % on their first counter: hear it first
                 fo = self.floor_c(o)
                 if fo >= c_best - 1e-6:
                     o.pruned = True
