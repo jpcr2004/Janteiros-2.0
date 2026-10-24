@@ -32,6 +32,7 @@ MIN_MOVE = 0.0015  # our smallest move, share of price (a move under 0.1 % made 
 STAND_OFF = 0.002  # stay this far under its standing price
 STOP_GAP = 0.004  # accept its standing sheet once our gap is under this share of price
 CLOSEOUT_ROUND = 5  # by then suppliers go final: offer its next counter on our best terms
+KEEP_OURS = 3  # rounds we keep our structure when it substitutes its own terms
 STEP = 0.25  # share of the gap we move per round (30 % beat 55 % and 1 %)
 FIRST_CAP = 0.016  # its first capped concession after the first counter, share of price (D01)
 
@@ -48,6 +49,7 @@ class Side:
         self.c_min = None
         self.v_min = None  # relationship goals: its value at our C-minimum on its terms
         self.stop_reason = None
+        self.kept = 0  # rounds we kept our structure after it put its own terms back
 
 
 class Negotiator(Policy):
@@ -79,7 +81,8 @@ class Negotiator(Policy):
             _, st = t.standing
             est = make_est(self.case, t.std, rate=p.rate, ppm=p.ppm_real, lead=(st or {}).get("lead_time_days"),
                            overtime=p.overtime, clause_moves=p.clause_moves, volume_value=p.volume_value,
-                           hedged="hedged" in p.traits)  # fmt: skip
+                           hedged="hedged" in p.traits and p.owner != "distributor"
+                           and self.case.get("type") != "raw_material")  # fmt: skip
             side = self.sides[sid] = Side(p, est)
             self.refresh(t)
             if resumed:
@@ -162,7 +165,7 @@ class Negotiator(Policy):
         """Its next concession in value; at least its last (concessions rarely grow)."""
         side, v = self.sides[t.sid], self.sides[t.sid].view
         n = next_concession(v, side.prior.ratio, side.prior.room)
-        return max(0.0, n, v.concessions[-1] if v.concessions else 0.0)
+        return max(0.0, n, v.concessions[-1] if len(v.concessions) >= 2 else 0.0)
 
     def stop(self, t):
         side, v = self.sides[t.sid], self.sides[t.sid].view
@@ -285,7 +288,7 @@ class Negotiator(Policy):
     def caps(self, t, target):
         side, v = self.sides[t.sid], self.sides[t.sid].view
         target = min(target, v.standing_v - STAND_OFF * v.price, v.standing_v - 1.1 * self.nxt(t))
-        if side.v_min is not None:
+        if side.v_min is not None and side.v_min < v.standing_v - STAND_OFF * v.price:
             target = max(target, side.v_min)  # below our C-minimum a lower price costs us more
         return target
 
@@ -296,11 +299,17 @@ class Negotiator(Policy):
         if math.isfinite(self.alt):
             lim = min(lim, self.alt - max(1.0, 0.0002 * self.alt))
         out = []
-        for k in at_value(self.case, t.std, side.est, target_v):
+        cands = at_value(self.case, t.std, side.est, target_v)
+        for k in cands:
             if not close:
                 k = self.under_next(t, k)
             if k.c < lim:
                 out.append(k)
+        if not out and not t.ours and relationship_goal(self.case):
+            # our C-minimum sits above its quote: the full-cost estimate is off; judge the anchor
+            # without the relationship charge until its counters bound that estimate
+            base = cost(self.case, t.standing[1], t.std)
+            out = [k for k in (self.under_next(t, k) for k in cands) if cost(self.case, k.terms, t.std) < base]
         out.sort(key=lambda k: k.c)
         return out
 
@@ -314,6 +323,14 @@ class Negotiator(Policy):
         terms = {**k.terms, "unit_price": p_cap}
         return Package(terms, cost(self.case, terms, t.std, self.est(t)), value(self.case, terms, side.est))
 
+    def our_main_terms(self, t):
+        """The non-price terms of our last main sheet."""
+        for m in reversed(t.ours):
+            sheets = m.get("term_sheets") or []
+            if sheets and sheets[0].get("terms"):
+                return sheets[0]["terms"]
+        return None
+
     def sheets(self, t, pkgs, target_v, close=False):
         """After round 1 the main sheet keeps the supplier's current terms at our target value (a
         genuine move in its eyes, whatever our value model says); the package cheapest for us at
@@ -324,6 +341,14 @@ class Negotiator(Policy):
         full = complete(self.case, st, t.std)
         best = pkgs[0]
         if t.ours:
+            mine = self.our_main_terms(t)
+            if mine is not None and not same_terms(mine, full, self.case) and side.kept < KEEP_OURS:
+                # it put its own terms back (a distributor's clause): keep our structure, it keeps
+                # countering on its terms at lower prices (P18 5.00 against 5.10 when we took them)
+                side.kept += 1
+                k = next((k for k in pkgs if same_terms(k.terms, mine, self.case)), None)
+                if k is not None:
+                    return [k]
             own = next((k for k in pkgs if same_terms(k.terms, full, self.case)), None)
             if own is None:
                 return [best]
@@ -376,7 +401,15 @@ class Negotiator(Policy):
             return None
         sheets = self.sheets(t, pkgs, target, close)
         if v.last_ours is not None:
-            sheets = [k for k in sheets if k.v >= v.last_ours - 1e-6 * v.price] or sheets[:1]
+            sheets = [k for k in sheets if k.v >= v.last_ours - 1e-4 * v.price]
+            if not sheets:  # nothing fits under its next counter without stepping back: hold
+                prev = [s_.get("terms") for s_ in t.ours[-1].get("term_sheets") or [] if s_.get("terms")]
+                prev = prev or [s_.get("terms") for m in reversed(t.ours) for s_ in m.get("term_sheets") or []][:1]
+                if not prev:
+                    return None
+                reason = f"hold our last offer ({reason})"
+                sheets = [Package(dict(x), cost(self.case, x, t.std, self.est(t)), value(self.case, x, side.est))
+                          for x in prev[:2]]  # fmt: skip
         mv = Move("send", t.sid, sheets=[k.terms for k in sheets], claims=self.claims_for(t), reason=reason,
                   tone="first" if not t.ours else ("close" if close else "counter"), points=self.answers(t))  # fmt: skip
         if len(t.ours) == 1:

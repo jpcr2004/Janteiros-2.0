@@ -109,11 +109,17 @@ def view(case, t, est, cost_est=None):
     return v
 
 
+FIRST_CAP = 0.016  # its first capped concession after the first counter, share of price (D01)
+
+
 def next_concession(v: View, prior_ratio=0.5, prior_room=0.06):
-    """Its next concession in value (decaying like its last ones)."""
-    d = [max(0.0, x) for x in v.concessions]
-    if not d:
+    """Its next concession in value, decaying like its last ones. The first counter is its own
+    (independent of our anchor), so only the concessions after it predict the next."""
+    if not v.concessions:
         return prior_room * 0.4 * v.price
+    d = [max(0.0, x) for x in v.concessions[1:]]
+    if not d:
+        return FIRST_CAP * v.price
     if len(d) >= 2 and d[-2] > 0:
         r = min(1.0, d[-1] / d[-2])
     else:

@@ -45,6 +45,8 @@ class Sim2(Sim):
         for sup, th in s["threads"].items():
             rng = random.Random(f"{self.seed}|{case['case_id']}|{sup}")
             rec = self.recorded.get(f"{base}|{sup}") if not case.get("synthetic_suppliers") else None
+            if rec and case.get("goal_variant"):  # its paths still fit; its c_best belongs to the base goal
+                rec = {"sessions": [{**x, "c_best": None} for x in rec["sessions"]]}
             p = build(case, sup, cw, rng, rec)
             self.personas[(s["id"], sup)] = p
             th["standard"] = dict(p.standard)
@@ -304,7 +306,7 @@ def variants(cases, world):
         else:
             b.pop("sustainable_margin_pct", None)
             b.pop("relationship_eur_per_point", None)
-        c.update(case_id=f"{cid}g", base_case_id=cid, title=base["title"] + f" ({goal})")
+        c.update(case_id=f"{cid}g", base_case_id=cid, title=base["title"] + f" ({goal})", goal_variant=True)
         out[c["case_id"]] = c
     return out
 
