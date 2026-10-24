@@ -454,6 +454,10 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "-") { S.speed = Math.max(0.5, S.speed / 2); render(); }
   if (e.key === "l") { S.cursor = null; S.playing = false; render(); }
 });
+setInterval(() => {  // the Arena and run lists pick up new runs on their own
+  const p = location.hash.replace(/^#\/?/, "").split("/");
+  if ((p[0] === "" || p[0] === "all") && !document.querySelector("details[open].help")) render();
+}, 15000);
 setInterval(() => {
   const p = location.hash.replace(/^#\/?/, "").split("/");
   if (p[0] === "run" && p[2] !== "case" && S.cursor == null && S.events.some((e) => e.kind === "case_open") && !document.querySelector("details[open].help")) render();  // board clocks
