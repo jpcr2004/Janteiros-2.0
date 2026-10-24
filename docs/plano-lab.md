@@ -57,6 +57,10 @@ Leitura honesta:
 Testes: 109 passam (`uv run pytest -q`), incluindo os novos `tests/test_lab.py` e
 `tests/test_many_bidders.py`.
 
+Já feito no laboratório (`4a5cbee`): stress 200 variantes limpo (média 0.802, zero problemas) e
+**dois ensaios da final seguidos** na arena-sim em tempo real (6/6 acordos cada, zero timeouts,
+zero erros, zero bloqueios). Falta só o que depende da arena real (T1-T4) e do release (seção 6).
+
 ## 3. Preparar a pasta do laboratório (você, 1 minuto)
 
 ```bash
