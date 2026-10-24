@@ -55,9 +55,9 @@ def kit_suite():
 
 
 def sim2_suite(quick=False):
-    from .sim2.server import build
+    from .sim2.server import suite
 
-    sim, app, items = build(seed=1, quick=quick)
+    sim, app, items = suite(seed=1, quick=quick)
     return "sim2", sim, app, items
 
 
@@ -73,11 +73,9 @@ def play_one(agent, arena, case, log):
 
 
 def run_suite(name, sim, app, items, agent, log, parallel=8):
-    arena = in_process_arena(sim, app)
-    rows = []
-
     def one(item):
         cid, seed = item
+        arena = in_process_arena(sim, app)  # a key per case: a crashed session never blocks others
         case = sim.case_for(cid) if hasattr(sim, "case_for") else sim.cases[cid]
         t0 = time.monotonic()
         try:
@@ -103,8 +101,7 @@ def run_suite(name, sim, app, items, agent, log, parallel=8):
         }
 
     with ThreadPoolExecutor(max_workers=parallel) as pool:
-        rows = list(pool.map(one, items))
-    return rows
+        return list(pool.map(one, items))
 
 
 def count_events(log):
