@@ -17,7 +17,7 @@ RUNS = ROOT / "runs"
 def git_commit() -> tuple[str, bool]:
     try:
         sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True)
-        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT,
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no", "--", ".", ":!results"], cwd=ROOT,
                                capture_output=True, text=True)  # fmt: skip
         return (sha.stdout.strip() or "none"), bool(dirty.stdout.strip())
     except Exception:  # noqa: BLE001
