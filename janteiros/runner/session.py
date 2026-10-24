@@ -265,6 +265,9 @@ class CaseRunner:
         msg = self.policy.compose(t, move, budget)
         problems = self.check(t, msg, move)
         self.log.emit("validate", supplier_id=t.sid, ok=not problems, problems=problems, reason=move.reason)
+        if problems and any(p.startswith("attachment ") for p in problems):
+            msg.pop("attachments", None)  # the message goes without the attachment
+            problems = [p for p in problems if not p.startswith("attachment ")]
         bad = {int(m.group(1)) for p in problems if (m := re.match(r"sheet (\d+):", p))}
         if problems and bad and all(re.match(r"sheet \d+:", p) for p in problems) and len(bad) < len(move.sheets):
             move.sheets = [sh for i, sh in enumerate(move.sheets) if i not in bad]  # drop just those
@@ -292,7 +295,8 @@ class CaseRunner:
                       body=msg.get("body"), sheets=sheets, refs=msg.get("refs", []),
                       c=[cost(self.case, s, std, self.policy.est(t)) for s in sheets],
                       claims=[c.get("sentence") for c in move.claims], reason=move.reason,
-                      age=round(t.age(self.mono()), 1), keepalive=move.keepalive)  # fmt: skip
+                      age=round(t.age(self.mono()), 1), keepalive=move.keepalive,
+                      attachments=[a.get("name") for a in msg.get("attachments") or []])  # fmt: skip
         t0 = self.mono()
         try:
             reply = self.arena.send_message(self.session_id, t.sid, msg)
@@ -301,6 +305,12 @@ class CaseRunner:
             if e.status == 409:
                 self.log.emit("timeout", supplier_id=t.sid, detail=str(e.detail)[:300])
                 return self.after_409(t)
+            if e.status == 422 and msg.get("attachments"):
+                # the arena refused the attachment: the same message without it (no round was used)
+                self.log.emit("error", supplier_id=t.sid, where="send", status=422, detail=str(e.detail)[:500],
+                              retry="without attachments")  # fmt: skip
+                msg = {k: v for k, v in msg.items() if k != "attachments"}
+                return self.send(t, msg, move)
             if e.status == 422:
                 t.rejected += 1
                 self.log.emit("error", supplier_id=t.sid, where="send", status=422, detail=str(e.detail)[:500])

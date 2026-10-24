@@ -5,6 +5,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from .. import flags
 from ..arena.client import Arena, ArenaError
 from ..events.log import EventLog
 from .session import CaseRunner, Ended
@@ -66,7 +67,7 @@ def new_arena(log=None):
 
 
 def play_case_id(case_id, policy="main", log=None):
-    log = log or EventLog(meta={"mode": "play", "case": case_id, "arena": os.environ.get("ARENA_URL")})
+    log = log or EventLog(meta={"mode": "play", "case": case_id, "arena": os.environ.get("ARENA_URL"), "flags": flags.state()})
     arena = new_arena(log)
     case = next((c for s in ("sandbox", "practice") for c in _cases(arena, s) if c["case_id"] == case_id), None)
     if case is None:
@@ -82,7 +83,7 @@ def _cases(arena, set_):
 
 
 def run_set(set_, policy="main", parallel=10, waves=5, only=None, log=None):
-    log = log or EventLog(meta={"mode": "run", "set": set_, "arena": os.environ.get("ARENA_URL")})
+    log = log or EventLog(meta={"mode": "run", "set": set_, "arena": os.environ.get("ARENA_URL"), "flags": flags.state()})
     arena = new_arena(log)
     if set_ == "final":
         from .waves import play_waves

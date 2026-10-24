@@ -1,0 +1,277 @@
+{
+ "case:D01|sup:DEMO-F1": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nWe propose: price EUR 50.24 per unit, payment 60 days net, contract term 24 months, new price valid from 2027-04-01.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [],
+  "sheets": [
+   {
+    "contract_months": 24,
+    "effective_date": "2027-04-01",
+    "payment_days": 60,
+    "unit_price": 50.24
+   }
+  ]
+ },
+ "case:D02|sup:DEMO-C1": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nWe propose one of these packages:\nOption A: price EUR 14.73 per unit, payment 60 days net, lead time 35 days, delivery DAP.\nOption B: price EUR 14.08 per unit, payment 45 days net, lead time 35 days, delivery EXW.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [],
+  "sheets": [
+   {
+    "incoterm": "DAP",
+    "lead_time_days": 35,
+    "payment_days": 60,
+    "unit_price": 14.73
+   },
+   {
+    "incoterm": "EXW",
+    "lead_time_days": 35,
+    "payment_days": 45,
+    "unit_price": 14.08
+   }
+  ]
+ },
+ "case:D02|sup:DEMO-J1": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nAnother supplier offers EUR 16.00 per unit for this part (offer:DEMO-C1-0).\n\nWe propose one of these packages:\nOption A: price EUR 13.91 per unit, payment 14 days net, lead time 35 days, delivery DAP.\nOption B: price EUR 13.36 per unit, payment 30 days net, lead time 28 days, delivery EXW.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "offer:DEMO-C1-0"
+  ],
+  "sheets": [
+   {
+    "incoterm": "DAP",
+    "lead_time_days": 35,
+    "payment_days": 14,
+    "unit_price": 13.91
+   },
+   {
+    "incoterm": "EXW",
+    "lead_time_days": 28,
+    "payment_days": 30,
+    "unit_price": 13.36
+   }
+  ]
+ },
+ "case:P01|sup:70110": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nPPI-D351 changed -17.1% from 2025-02 to 2026-02 (idx:PPI-D351@2025-02, idx:PPI-D351@2026-02).\nYour letter gives 51 days of notice (doc:20260911-70110-P01), while our contract requires 90 days (ctr:4600070110).\nOur forecast for this part is up 10.1% (fc:310010@2026-09).\n\nWe propose: price EUR 127.50 per unit, new price valid from 2026-11-01, payment 14 days net.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "idx:PPI-D351@2025-02",
+   "idx:PPI-D351@2026-02",
+   "doc:20260911-70110-P01",
+   "ctr:4600070110",
+   "fc:310010@2026-09"
+  ],
+  "sheets": [
+   {
+    "effective_date": "2026-11-01",
+    "payment_days": 14,
+    "unit_price": 127.5
+   }
+  ]
+ },
+ "case:P02|sup:70510": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nOur forecast for this part is up 11.9% (fc:350011@2026-09).\nPPI-C241 changed -4.3% from 2024-10 to 2025-10 (idx:PPI-C241@2024-10, idx:PPI-C241@2025-10).\nCU-NOTATION changed -2.2% from 2026-01 to 2026-03 (idx:CU-NOTATION@2026-01, idx:CU-NOTATION@2026-03).\n\nWe propose: price EUR 358.64 per unit, payment 90 days net, no index clause, fixed price.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "fc:350011@2026-09",
+   "idx:PPI-C241@2024-10",
+   "idx:PPI-C241@2025-10",
+   "idx:CU-NOTATION@2026-01",
+   "idx:CU-NOTATION@2026-03"
+  ],
+  "sheets": [
+   {
+    "index_clause": null,
+    "payment_days": 90,
+    "unit_price": 358.64
+   }
+  ]
+ },
+ "case:P03|sup:70530": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nOur should-cost estimate for this part is EUR 403.21 per unit (cost:350020).\nOur forecast for this part is up 10.3% (fc:350020@2026-09).\nPPI-C2611 changed -2.3% from 2025-01 to 2025-10 (idx:PPI-C2611@2025-01, idx:PPI-C2611@2025-10).\n\nWe propose: price EUR 415.37 per unit, payment 90 days net, contract term 36 months, 4580 units a year.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "cost:350020",
+   "fc:350020@2026-09",
+   "idx:PPI-C2611@2025-01",
+   "idx:PPI-C2611@2025-10"
+  ],
+  "sheets": [
+   {
+    "contract_months": 36,
+    "payment_days": 90,
+    "unit_price": 415.37,
+    "volume_per_year": 4580
+   }
+  ]
+ },
+ "case:P04|sup:70620": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nYour on-time delivery was 85.0% over the last twelve months (sc:70620@2026Q3).\nOur last 3 orders for this part were at EUR 4.39 per unit (po:4500014329-10, po:4500014389-10, po:4500014467-10).\nOur forecast for this part is up 4.2% (fc:360020@2026-09).\n\nWe propose: price EUR 4.55 per unit, payment 90 days net, contract term 36 months.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "sc:70620@2026Q3",
+   "po:4500014329-10",
+   "po:4500014389-10",
+   "po:4500014467-10",
+   "fc:360020@2026-09"
+  ],
+  "sheets": [
+   {
+    "contract_months": 36,
+    "payment_days": 90,
+    "unit_price": 4.55
+   }
+  ]
+ },
+ "case:P05|sup:70210": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nAnother supplier offers EUR 31.50 per unit for this part (offer:70240-0).\nAS-14404 changed -8.1% from 2024-11 to 2025-11 (idx:AS-14404@2024-11, idx:AS-14404@2025-11).\nYour on-time delivery was 80.8% over the last twelve months (sc:70210@2026Q3).\n\nWe propose one of these packages:\nOption A: price EUR 27.28 per unit, payment 14 days net, lead time 35 days.\nOption B: price EUR 27.55 per unit, payment 60 days net, lead time 35 days.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "offer:70240-0",
+   "idx:AS-14404@2024-11",
+   "idx:AS-14404@2025-11",
+   "sc:70210@2026Q3"
+  ],
+  "sheets": [
+   {
+    "lead_time_days": 35,
+    "payment_days": 14,
+    "unit_price": 27.28
+   },
+   {
+    "lead_time_days": 35,
+    "payment_days": 60,
+    "unit_price": 27.55
+   }
+  ]
+ },
+ "case:P05|sup:70240": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nYour on-time delivery was 62.5% over the last twelve months (sc:70240@2026Q3).\nPPI-C2431 changed -2.3% from 2026-06 to 2026-08 (idx:PPI-C2431@2026-06, idx:PPI-C2431@2026-08).\n\nWe propose: price EUR 27.23 per unit, payment 14 days net, lead time 42 days.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "sc:70240@2026Q3",
+   "idx:PPI-C2431@2026-06",
+   "idx:PPI-C2431@2026-08"
+  ],
+  "sheets": [
+   {
+    "lead_time_days": 42,
+    "payment_days": 14,
+    "unit_price": 27.23
+   }
+  ]
+ },
+ "case:P05|sup:70250": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nAnother supplier offers EUR 31.50 per unit for this part (offer:70240-0).\nOur should-cost estimate for this part is EUR 36.87 per unit (cost:320070).\nYour on-time delivery was 88.0% over the last twelve months (sc:70250@2026Q3).\n\nWe propose one of these packages:\nOption A: price EUR 29.35 per unit, payment 14 days net, lead time 35 days.\nOption B: price EUR 29.65 per unit, payment 60 days net, lead time 35 days.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "offer:70240-0",
+   "cost:320070",
+   "sc:70250@2026Q3"
+  ],
+  "sheets": [
+   {
+    "lead_time_days": 35,
+    "payment_days": 14,
+    "unit_price": 29.35
+   },
+   {
+    "lead_time_days": 35,
+    "payment_days": 60,
+    "unit_price": 29.65
+   }
+  ]
+ },
+ "case:P07|sup:70610": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nOur forecast for this part is up 6.0% (fc:360010@2026-09).\nYour on-time delivery was 88.6% over the last twelve months (sc:70610@2026Q3).\nPPI-C2594 changed -1.6% from 2024-10 to 2025-10 (idx:PPI-C2594@2024-10, idx:PPI-C2594@2025-10).\n\nWe propose: price EUR 5.29 per unit, payment 14 days net, contract term 36 months.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "fc:360010@2026-09",
+   "sc:70610@2026Q3",
+   "idx:PPI-C2594@2024-10",
+   "idx:PPI-C2594@2025-10"
+  ],
+  "sheets": [
+   {
+    "contract_months": 36,
+    "payment_days": 14,
+    "unit_price": 5.29
+   }
+  ]
+ },
+ "case:P08|sup:70710": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nAS-14404 changed -8.1% from 2024-11 to 2025-11 (idx:AS-14404@2024-11, idx:AS-14404@2025-11).\nPPI-C2431 changed -2.3% from 2026-06 to 2026-08 (idx:PPI-C2431@2026-06, idx:PPI-C2431@2026-08).\nOur last 3 orders for this part were at EUR 5.45 per unit (po:4500014305-10, po:4500014391-10, po:4500014455-10).\n\nWe propose: price EUR 4.82 per unit, no index clause, fixed price, payment 90 days net, contract term 36 months.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "idx:AS-14404@2024-11",
+   "idx:AS-14404@2025-11",
+   "idx:PPI-C2431@2026-06",
+   "idx:PPI-C2431@2026-08",
+   "po:4500014305-10",
+   "po:4500014391-10",
+   "po:4500014455-10"
+  ],
+  "sheets": [
+   {
+    "contract_months": 36,
+    "index_clause": null,
+    "payment_days": 90,
+    "unit_price": 4.82
+   }
+  ]
+ },
+ "case:P10|sup:70410": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nOur should-cost estimate for this part is EUR 24.31 per unit (cost:340010).\nOur forecast for this part is up 10.1% (fc:340010@2026-09).\nYour on-time delivery was 79.5% over the last twelve months (sc:70410@2026Q3).\n\nWe propose: price EUR 30.32 per unit, 23400 units a year, contract term 36 months, lead time 56 days.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "cost:340010",
+   "fc:340010@2026-09",
+   "sc:70410@2026Q3"
+  ],
+  "sheets": [
+   {
+    "contract_months": 36,
+    "lead_time_days": 56,
+    "unit_price": 30.32,
+    "volume_per_year": 23400
+   }
+  ]
+ },
+ "case:P11|sup:70140": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nPPI-D351 changed -17.1% from 2025-02 to 2026-02 (idx:PPI-D351@2025-02, idx:PPI-D351@2026-02).\nOur forecast for this part is up 20.0% (fc:310020@2026-09).\nYour on-time delivery was 63.5% over the last twelve months (sc:70140@2026Q3).\n\nWe confirm our full need of 15900 units a year, all placed with you.\n\nWe propose: quality commitment 300 ppm, chargeback EUR 0.00 per complaint, price EUR 42.06 per unit.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "idx:PPI-D351@2025-02",
+   "idx:PPI-D351@2026-02",
+   "fc:310020@2026-09",
+   "sc:70140@2026Q3"
+  ],
+  "sheets": [
+   {
+    "chargeback_eur_per_complaint": 0,
+    "ppm_commitment": 300,
+    "unit_price": 42.06
+   }
+  ]
+ },
+ "case:P18|sup:70740": {
+  "attachments": [],
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nAS-14404 changed -8.1% from 2024-11 to 2025-11 (idx:AS-14404@2024-11, idx:AS-14404@2025-11).\nYour on-time delivery was 81.0% over the last twelve months (sc:70740@2026Q3).\nPPI-C2431 changed -2.3% from 2026-06 to 2026-08 (idx:PPI-C2431@2026-06, idx:PPI-C2431@2026-08).\n\nWe propose: price EUR 5.04 per unit, no index clause, fixed price, payment 30 days net, contract term 36 months.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "refs": [
+   "idx:AS-14404@2024-11",
+   "idx:AS-14404@2025-11",
+   "sc:70740@2026Q3",
+   "idx:PPI-C2431@2026-06",
+   "idx:PPI-C2431@2026-08"
+  ],
+  "sheets": [
+   {
+    "contract_months": 36,
+    "index_clause": null,
+    "payment_days": 30,
+    "unit_price": 5.04
+   }
+  ]
+ }
+}
