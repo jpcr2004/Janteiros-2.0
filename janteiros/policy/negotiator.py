@@ -168,7 +168,9 @@ class Negotiator(Policy):
             if quote_cash:
                 break
         p = copy.copy(e)
-        p.full_cost = max(e.full_cost * 1.04, 0.97 * quote_cash if quote_cash and side else 0.0)
+        # 4 % on a guess; 2 % on its own plant's should-cost (true full cost within 0.6 % there)
+        up = 1.02 if flags.on("FC_V2") and side and side.prior.should_cost and side.prior.sc_kind == "own" else 1.04
+        p.full_cost = max(e.full_cost * up, 0.97 * quote_cash if quote_cash and side else 0.0)
         return p
 
     def known_id(self, ref):

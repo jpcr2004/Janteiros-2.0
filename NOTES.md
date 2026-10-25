@@ -121,3 +121,18 @@ Offline checks on 235821c (no LLM): 94 tests; stress 120 x seeds 1-4 clean (0.79
 bugs, not tactics). Writer replayed with the real LLM on 29 points of the r4 threads: 28 accepted,
 median 3.2 s, max 6.8 s (with a "no mention of unchanged terms" rule: 9/29, dropped).
 The real arena decides: see docs/plano-experimentos-final.md and the commands in the README.
+
+## Supplier full cost (FC_V2, 7cdd61d +)
+True full cost recovered from the relationship charge of 61 real deals (formula inverted; spread
+<= 0.34 % per supplier): D01 0.909 x quote cash (no should-cost); P01/P02/P03 0.992/0.987/0.986 x
+their own-plant should-cost. company.md: own-plant rows ~5 % error, cost-base rows 5-15 % plus a
+country factor (AT/CH 1.0-1.1, CZ/PL/HU 0.8-0.85, TR 0.75, CN 0.7) - the old code ignored both.
+- own row: fc = 0.988 x sc (leave-one-out error <= 0.55 %; old 0.98: -0.6 to -1.2 %);
+- cost-base row: sc x country factor, averaged with 0.92 x quote;
+- no should-cost: 0.92 x quote stays: no fixed ratio works (0.88-0.98 all leave >= 58 kEUR worst case);
+- pessimistic gate: +2 % on an own-plant row (was +4 %, still 4x the observed error), +4 % else.
+Regret of our C-minimum price under the true full cost (4 real suppliers): 8321 -> 2122 EUR.
+sim2 stress (true fc drawn sc x U(0.95, 1.02) now, was U(0.97, 0.995): our own old guess) on 3
+seeds: switches on 0.784/0.824/0.801 vs off 0.790/0.829/0.799. The loss sits in P01 variants, where
+sim2's calibrated full cost (130.27) is 1 % under the real one (131.56), and one knife-edge variant
+(P02x89: our C-minimum at its quote). Real data favour FC_V2; the arena (P01, P02, P03) decides.

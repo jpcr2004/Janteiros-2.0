@@ -222,7 +222,8 @@ def build(case, sid, world, rng, recorded=None):
                    security=0.02 if case.get("type") == "raw_material" else 0.0)  # fmt: skip
     qv = value(case, quote, est)
     sc = prof.get("should_cost")
-    fc = sc * rng.uniform(0.97, 0.995) if sc and sc < quote["unit_price"] * 1.1 else qv * (1 - rng.uniform(0.05, 0.11))
+    # own-plant should-cost: about 5 % error (company.md); the real full costs sat at 0.986-0.992 of it
+    fc = sc * rng.uniform(0.95, 1.02) if sc and sc < quote["unit_price"] * 1.1 else qv * (1 - rng.uniform(0.05, 0.11))
     est.full_cost = round(fc, 4)
     fd = (
         sorted(first_drops)[len(first_drops) // 2]
