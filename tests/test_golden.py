@@ -1,5 +1,5 @@
 """With every switch off (JT_X_ALL=0) the agent writes exactly the baseline round-1 messages
-(baseline-r4) on every recorded real opening."""
+(main 22f7c26: baseline-r4 plus the release scenario, which moves only P08's claim order) on every recorded real opening."""
 
 import importlib.util
 import json
