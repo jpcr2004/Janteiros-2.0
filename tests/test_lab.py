@@ -82,3 +82,31 @@ def test_experiments_measured_worse_stay_off_unless_named(monkeypatch):
     assert not flags.on("GENERIC")
     monkeypatch.setenv("JT_X_GENERIC", "1")
     assert flags.on("GENERIC")
+
+
+def test_verbal_offer_becomes_a_candidate_sheet_checked_by_code(monkeypatch):
+    import janteiros.llm.reader as rd
+
+    case, t, pol = thread("case:P10", [P10])
+    pol.reader = object()  # a reader is configured (the call itself is faked below)
+    monkeypatch.setattr(rd, "offers_from", lambda case, body, timeout=5.0: [(32.9, {"lead_time_days": 42}), (3.0, {})])
+    pol.read_offers(t, "If you confirm 42 days, we can offer 32.90 per unit.")
+    assert [s["unit_price"] for s in pol.sides[t.sid].verbal] == [32.9]  # 3.00 is a misread figure
+    pick = pol.mirror_pick(t, "final_offer")
+    assert pick is not None and pick[1]["unit_price"] == 32.9 and pick[1]["lead_time_days"] == 42
+    monkeypatch.setenv("JT_X_VERBAL_OFFERS", "0")
+    pol.read_offers(t, "we can offer 32.90")
+    assert pol.sides[t.sid].verbal == []
+
+
+def test_offers_from_keeps_only_allowed_fields_and_values(monkeypatch):
+    import janteiros.llm.reader as rd
+
+    case = CASES["case:P10"]
+    fake = {"offers": [{"unit_price": 33.1, "terms": [{"field": "lead_time_days", "value": 42},
+                                                      {"field": "lead_time_days", "value": 43},
+                                                      {"field": "contract_months", "value": 24}]}]}  # fmt: skip
+    monkeypatch.setattr(rd, "ask_json", lambda *a, **k: fake)
+    got = rd.offers_from(case, "If you take 24 months we can offer 33.10.")
+    assert got == [(33.1, {"lead_time_days": 42, "contract_months": 24})]
+    assert rd.offers_from(case, "Thank you for your e-mail.") == []  # no offer cue: no call at all

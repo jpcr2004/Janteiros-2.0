@@ -16,6 +16,7 @@ NAMES = (
     "RESCUE",
     "MIRROR",
     "HEDGE_CLAIMS",
+    "VERBAL_OFFERS",
 )
 
 

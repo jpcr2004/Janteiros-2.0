@@ -65,6 +65,7 @@ class Side:
         self.forecast_sent = False
         self.rescues = 0  # sheets sent to make a valid package standing (no alternative)
         self.mirror_sent = False  # we sent back one of its alternative packages
+        self.verbal = []  # offers its latest e-mail states only in words, as full sheets (VERBAL_OFFERS)
         self.kept = 0  # rounds we kept our structure after it put its own terms back
 
 
@@ -620,6 +621,7 @@ class Negotiator(Policy):
             return None
         last = next((m for m in reversed(t.messages) if m.get("from") != "buyer"), None)
         sheets = (last or {}).get("term_sheets") or []
+        sheets = sheets + [{"terms": s} for s in side.verbal]  # offers it stated only in words
         if len(sheets) < 2:
             return None
         ok, c_st, _ = gate(self.case, t.standing[1], t.std, self.est(t))
@@ -830,6 +832,7 @@ class Negotiator(Policy):
             side.asks |= asks
             side.observed |= {name for name in ("price_frozen", "cash_short", "capacity_tight") if read.get(name)}
         self.capture_requests(t)
+        self.read_offers(t, body)
         self.refresh(t)
         v = side.view
         self.log.emit("model_update", supplier_id=t.sid, standing_c=v.standing_c, standing_v=v.standing_v,
@@ -837,6 +840,32 @@ class Negotiator(Policy):
                       rate=side.est.rate, full_cost=side.est.full_cost, c_min=side.c_min,
                       asks=sorted(side.asks), observed=sorted(side.observed),
                       concessions=[round(v.rel(x), 5) for x in v.concessions])  # fmt: skip
+
+    def read_offers(self, t, body):
+        """VERBAL_OFFERS: offers its e-mail states only in words become candidate sheets: its standing
+        terms with the fields it named, at the price it named. Only used when the thread is done and
+        only when the sheet passes the gate and costs us less (mirror_pick)."""
+        side = self.sides[t.sid]
+        side.verbal = []
+        if not flags.on("VERBAL_OFFERS") or self.reader is None or sum(o.live for o in self.threads.values()) > 2:
+            return
+        import time
+
+        from ..llm.reader import offers_from
+
+        t0 = time.monotonic()
+        found = offers_from(self.case, body)
+        _, st = t.standing
+        base = complete(self.case, st or {}, t.std)
+        price = base.get("unit_price") or 0
+        for p, terms in found:
+            if price and not 0.7 * price <= p <= 1.3 * price:
+                continue  # a misread figure (a volume, a percentage), not its price
+            sheet = {**base, **terms, "unit_price": p}
+            if musts_ok(self.case, sheet, t.std):
+                side.verbal.append(sheet)
+        self.log.emit("llm_call", supplier_id=t.sid, role="offers", seconds=round(time.monotonic() - t0, 2),
+                      fallback=False, offers=found, kept=side.verbal)  # fmt: skip
 
     def read(self, t, body):
         """The reader on a reply, when the clocks allow it (one or two live threads)."""
