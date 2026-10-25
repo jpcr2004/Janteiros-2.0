@@ -18,7 +18,11 @@ NAMES = (
 )
 
 
-DEFAULT_OFF = ("GENERIC", "ROBUST_FC")  # experiments measured worse offline: on only when asked for by name
+DEFAULT_OFF = (
+    "GENERIC",
+    "ROBUST_FC",
+    "PROBE",
+)  # PROBE: real P18 0.677 -> 0.610 (25 Oct T1), no gain seen  # experiments measured worse offline: on only when asked for by name
 
 
 def on(name):

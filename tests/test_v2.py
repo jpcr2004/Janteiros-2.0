@@ -13,7 +13,9 @@ from janteiros.runner.state import Thread
 from janteiros.validate.check import check_attachment, validate
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-CASES = {c["case_id"]: c for f in ("practice", "sandbox") for c in json.loads((ROOT / f"data/cases/{f}.json").read_text())}
+CASES = {
+    c["case_id"]: c for f in ("practice", "sandbox") for c in json.loads((ROOT / f"data/cases/{f}.json").read_text())
+}
 
 BLOCK = [
     "We accept your offer and look forward to working together.",
