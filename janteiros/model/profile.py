@@ -21,7 +21,7 @@ TRAITS = {
     "price_frozen": r"no room on price|not discounted|price list (\d{4} )?applies to all|discounts not possible"
     r"|frozen all price reductions|individual price reductions|prices? (are|will be) set centrally",
     "hedged": r"bought (their|our) [\w ,-]{1,60} forward|covered at fixed prices|material covered until"
-    r"|secures power prices|hedged",
+    r"|secures power prices|hedged|bought forward|secured [\w ,-]{1,60} at fixed prices",
     "distributor": r"distribut\w+|stockist|from stock|mill price|alloy surcharge",
     "wants_volume": r"volume commitment|binding (higher )?volume|commit to|which volume",
 }
