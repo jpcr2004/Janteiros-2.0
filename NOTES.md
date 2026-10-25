@@ -110,3 +110,8 @@ P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 
 - Real T1 (10208d8, no LLM): 0.7895 (main best 0.7946). P18 -0.067 from PROBE -> PROBE off (f118f3c);
   P08 = main with identical sheets; P02 +0.083 (wording). Next: P18 alone to confirm.
 - Real P18 alone (ef5b11a, PROBE off, no LLM): 0.685 (T1 0.610, main best 0.677). Lab latest per case: mean 0.797.
+- Head-to-head on the real arena, final config, 10 cases in parallel, run back to back (25 Oct ~02:12):
+  lab 9c661bb 0.797 (10 deals, 0 timeouts) vs main 57683be 0.701 (9 deals). Lab >= main on every case:
+  P02 +0.100, P07 +0.593, P08 +0.188, P18 +0.075, the rest equal. main P07: its message came late in
+  round 3 (LLM writer ~6 s per call x 10 parallel cases), the supplier went final, main pushed again and
+  it walked (0.121); main's own events counted 0 timeouts (the arena's trace shows the buyer timeout).
