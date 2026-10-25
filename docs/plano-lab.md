@@ -167,3 +167,18 @@ O `data/package` do laboratório já é um link para o da pasta principal.
 - Não ligar GENERIC ou ROBUST_FC na final sem o T3.
 - Não usar sim2 ou sim3 como prova de tática.
 - Não mexer na pasta `Janteiros-2.0` enquanto a outra sessão estiver ativa nela.
+
+## 10. Resultado do T1 (25/10 ~02:00, commit `10208d8`, sem LLM, rodado a pedido)
+
+Média **0.7895**, 10 acordos, 0 timeouts, 0 erros (`main` melhor: 0.7946).
+
+| Caso | `main` melhor | T1 | Causa (a arena responde igual a propostas iguais) |
+|---|---|---|---|
+| P02 | 0.792 | **0.875** | mesmas propostas, texto diferente, uma rodada a mais |
+| P08 | 0.737 | 0.670 | **= `main`** na rodada de 00:52 com as mesmas propostas; o 0.737 veio de outro texto |
+| P18 | 0.677 | 0.610 | **a proposta de sondagem (PROBE)**: 1ª contraproposta 5.30 em vez de 5.20 |
+| demais 7 | | iguais | |
+
+Mudança: PROBE desligada por padrão (`f118f3c`); offline igual (arena-sim 0.708, sim2 0.775,
+sim3 0.562). Próximo teste: **P18 sozinho** (1 sessão), esperado voltar a ~0.677:
+`JT_NO_LLM=1 uv run jt run --set practice --real --no-llm --cases case:P18`.

@@ -107,3 +107,5 @@ P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 
 - Offline (no LLM): arena-sim 0.708, sim2 0.775 (p10 0.373), sim3 v2 0.566 (p10 0.157), = lab base.
 - Final rehearsal 1 on 9d7d6f6: 6/6 deals, 0 timeouts, 0 errors, 0 validator blocks.
 - Final rehearsal 2 on 4a5cbee: 6/6 deals, 0 timeouts, 0 errors. Stress 200 (seed 3): 0.802, no problems.
+- Real T1 (10208d8, no LLM): 0.7895 (main best 0.7946). P18 -0.067 from PROBE -> PROBE off (f118f3c);
+  P08 = main with identical sheets; P02 +0.083 (wording). Next: P18 alone to confirm.
