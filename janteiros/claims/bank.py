@@ -42,10 +42,15 @@ class ClaimBank:
         claims += self.scorecard(sid, prof)
         claims += self.orders(sid, price)
         owner = prof.get("owner_type")
+        hedged = "hedged" in (prof.get("traits") or [])
         for c in claims:
             w = WEIGHT[c["kind"]]
             if owner in COLD and c["kind"] in ("scorecard", "orders"):
                 w *= 0.4
+            if hedged and c["kind"] == "driver" and not c["refs"][0].startswith("idx:LCI"):
+                # material bought forward: a falling index "does not reach our cost" (P08 real);
+                # labour is not hedged
+                w *= 0.1
             c["rank"] = round(w * c.get("strength", 1.0), 4)
         claims.sort(key=lambda c: -c["rank"])
         self.bank[sid] = claims
