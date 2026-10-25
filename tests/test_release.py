@@ -71,7 +71,8 @@ def test_distributor_with_a_lost_contract_has_spare_capacity(sim):
     assert "spare_capacity" in side.prior.traits and mv is not None
 
 
-def test_steel_bought_forward_gets_no_material_index_argument_first(sim):
+def test_steel_bought_forward_gets_no_material_index_argument_first(sim, monkeypatch):
+    monkeypatch.setenv("JT_X_HEDGE_CLAIMS", "1")  # off by default (real P08 did better with indices first)
     case, side, mv = first_move(sim, "sup:70340", W)
     assert "hedged" in side.prior.traits
     from janteiros.claims.bank import ClaimBank

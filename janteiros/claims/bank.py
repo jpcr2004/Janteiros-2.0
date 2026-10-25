@@ -42,7 +42,11 @@ class ClaimBank:
         claims += self.scorecard(sid, prof)
         claims += self.orders(sid, price)
         owner = prof.get("owner_type")
-        hedged = "hedged" in (prof.get("traits") or [])
+        from ..flags import on
+
+        # material bought forward: index arguments last (main 22f7c26). Off by default: on the real
+        # P08 the alloy indices first gave 0.670, last 0.515, with the same sheets (25 Oct)
+        hedged = "hedged" in (prof.get("traits") or []) and on("HEDGE_CLAIMS")
         for c in claims:
             w = WEIGHT[c["kind"]]
             if owner in COLD and c["kind"] in ("scorecard", "orders"):

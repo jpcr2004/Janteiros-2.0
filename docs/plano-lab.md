@@ -201,3 +201,12 @@ uv run jt run --set final --real
 ```
 Texto fixo (padrão). Não definir `JT_LLM_WRITER`. Para tirar também o reader do LLM:
 `JT_NO_READER=1 uv run jt run --set final --real`.
+
+## 12. Rodada real do `final-lab` (e48acc7, configuração da final, rodada por você ~10:26)
+
+Média 0.7815: 9 casos idênticos à rodada anterior; **P08 0.670 -> 0.515**. Mesmas propostas
+(4.82, 4.93); só a ordem dos argumentos mudou pela regra do `main` 22f7c26 (fornecedor hedged:
+índice de material por último). Respostas 5.55/5.43/final 5.38 contra 5.52/5.30/final 5.24.
+Correção: a reordenação virou a chave `HEDGE_CLAIMS`, desligada por padrão; o reconhecimento de
+"bought forward" como hedged continua. Primeira mensagem do P08 de novo idêntica à que fez 0.670
+(golden test). Tag `final-lab` movida para este commit.

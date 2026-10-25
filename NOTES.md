@@ -116,3 +116,4 @@ P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 
   round 3 (LLM writer ~6 s per call x 10 parallel cases), the supplier went final, main pushed again and
   it walked (0.121); main's own events counted 0 timeouts (the arena's trace shows the buyer timeout).
 - Merged main 22f7c26 (release). Final candidate: tag final-lab. 115 tests, stress clean, rehearsal 6/6.
+- Real final-lab run (e48acc7): 0.7815; P08 -0.155 from main's hedged claim order -> HEDGE_CLAIMS off by default.

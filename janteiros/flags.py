@@ -15,6 +15,7 @@ NAMES = (
     "ROBUST_FC",
     "RESCUE",
     "MIRROR",
+    "HEDGE_CLAIMS",
 )
 
 
@@ -22,6 +23,7 @@ DEFAULT_OFF = (
     "GENERIC",
     "ROBUST_FC",
     "PROBE",
+    "HEDGE_CLAIMS",  # real P08: index arguments first 0.670, last 0.515 (25 Oct, same sheets)
 )  # PROBE: real P18 0.677 -> 0.610 (25 Oct T1), no gain seen  # experiments measured worse offline: on only when asked for by name
 
 

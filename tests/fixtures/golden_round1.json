@@ -202,14 +202,15 @@
  },
  "case:P08|sup:70710": {
   "attachments": [],
-  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nOur last 3 orders for this part were at EUR 5.45 per unit (po:4500014305-10, po:4500014391-10, po:4500014455-10).\nYour on-time delivery was 88.0% over the last twelve months (sc:70710@2026Q3).\nAS-14404 changed -8.1% from 2024-11 to 2025-11 (idx:AS-14404@2024-11, idx:AS-14404@2025-11).\n\nWe propose: price EUR 4.82 per unit, no index clause, fixed price, payment 90 days net, contract term 36 months.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
+  "body": "Dear Sir or Madam,\n\nThank you for your offer and for the work your team has put into it. We value working with you and would like to find terms that work for both sides.\n\nAS-14404 changed -8.1% from 2024-11 to 2025-11 (idx:AS-14404@2024-11, idx:AS-14404@2025-11).\nPPI-C2431 changed -2.3% from 2026-06 to 2026-08 (idx:PPI-C2431@2026-06, idx:PPI-C2431@2026-08).\nOur last 3 orders for this part were at EUR 5.45 per unit (po:4500014305-10, po:4500014391-10, po:4500014455-10).\n\nWe propose: price EUR 4.82 per unit, no index clause, fixed price, payment 90 days net, contract term 36 months.\n\nKind regards\nHollerau Pumpenwerke GmbH, Purchasing",
   "refs": [
+   "idx:AS-14404@2024-11",
+   "idx:AS-14404@2025-11",
+   "idx:PPI-C2431@2026-06",
+   "idx:PPI-C2431@2026-08",
    "po:4500014305-10",
    "po:4500014391-10",
-   "po:4500014455-10",
-   "sc:70710@2026Q3",
-   "idx:AS-14404@2024-11",
-   "idx:AS-14404@2025-11"
+   "po:4500014455-10"
   ],
   "sheets": [
    {
