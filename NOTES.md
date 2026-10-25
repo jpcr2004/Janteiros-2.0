@@ -115,3 +115,4 @@ P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 
   P02 +0.100, P07 +0.593, P08 +0.188, P18 +0.075, the rest equal. main P07: its message came late in
   round 3 (LLM writer ~6 s per call x 10 parallel cases), the supplier went final, main pushed again and
   it walked (0.121); main's own events counted 0 timeouts (the arena's trace shows the buyer timeout).
+- Merged main 22f7c26 (release). Final candidate: tag final-lab. 115 tests, stress clean, rehearsal 6/6.

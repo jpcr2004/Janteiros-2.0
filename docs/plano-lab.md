@@ -182,3 +182,22 @@ Média **0.7895**, 10 acordos, 0 timeouts, 0 erros (`main` melhor: 0.7946).
 Mudança: PROBE desligada por padrão (`f118f3c`); offline igual (arena-sim 0.708, sim2 0.775,
 sim3 0.562). Próximo teste: **P18 sozinho** (1 sessão), esperado voltar a ~0.677:
 `JT_NO_LLM=1 uv run jt run --set practice --real --no-llm --cases case:P18`.
+
+## 11. Candidato da final (25/10 ~10:10 CET): tag `final-lab` (= `ab6f1bd` + este registro)
+
+- `main` 22f7c26 juntado (release de domingo: "bought forward" = hedged, sem índice de material
+  primeiro); golden test regravado (só a ordem de argumentos do P08 mudou).
+- 115 testes passam (incl. `tests/test_release.py` com a release no disco); stress 200 limpo (0.802);
+  ensaio da final 6/6, 0 timeouts, 0 erros.
+- Arena real com a configuração da final (antes do merge, 9c661bb): 0.797, igual em duas rodadas.
+- Prior "genérico leve" **não** feito: a hipótese (regras de matéria-prima são de distribuidores)
+  estava errada; P18 e P16 são empresas familiares. As regras do `main` usam as mesmas
+  características que o gerador da arena usa na final (tipo de caso, de dono, traços).
+
+Comando da final (só você, a partir de ~12:30, depois do freeze):
+```bash
+cd ~/IdeaProjects/Janteiros-2.0-lab
+uv run jt run --set final --real
+```
+Texto fixo (padrão). Não definir `JT_LLM_WRITER`. Para tirar também o reader do LLM:
+`JT_NO_READER=1 uv run jt run --set final --real`.
