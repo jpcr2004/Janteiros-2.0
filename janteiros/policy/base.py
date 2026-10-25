@@ -14,6 +14,7 @@ class Move:
     claims: list = field(default_factory=list)  # [{"sentence", "refs", ...}]
     points: list = field(default_factory=list)  # plain sentences code wrote (answers, asks)
     ask: str | None = None  # a question to the supplier
+    attachments: list = field(default_factory=list)  # [{"name", "type", "content_b64"}], data code wrote
     reason: str = ""  # which rule fired
     keepalive: bool = False
     allow_above_alt: bool = False

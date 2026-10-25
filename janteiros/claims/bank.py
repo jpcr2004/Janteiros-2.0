@@ -42,10 +42,19 @@ class ClaimBank:
         claims += self.scorecard(sid, prof)
         claims += self.orders(sid, price)
         owner = prof.get("owner_type")
+        from ..flags import on
+
+        # material bought forward: index arguments last (main 22f7c26). Off by default: on the real
+        # P08 the alloy indices first gave 0.670, last 0.515, with the same sheets (25 Oct)
+        hedged = "hedged" in (prof.get("traits") or []) and on("HEDGE_CLAIMS")
         for c in claims:
             w = WEIGHT[c["kind"]]
             if owner in COLD and c["kind"] in ("scorecard", "orders"):
                 w *= 0.4
+            if hedged and c["kind"] == "driver" and not c["refs"][0].startswith("idx:LCI"):
+                # material bought forward: a falling index "does not reach our cost" (P08 real);
+                # labour is not hedged
+                w *= 0.1
             c["rank"] = round(w * c.get("strength", 1.0), 4)
         claims.sort(key=lambda c: -c["rank"])
         self.bank[sid] = claims

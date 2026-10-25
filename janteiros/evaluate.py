@@ -13,6 +13,7 @@ from pathlib import Path
 import httpx
 from fastapi.testclient import TestClient
 
+from . import flags
 from .arena.client import Arena
 from .events.log import EventLog, git_commit
 
@@ -61,6 +62,29 @@ def sim2_suite(quick=False):
     return "sim2", sim, app, items
 
 
+def sim3_suite(quick=False):
+    from .sim3 import suite
+
+    sim, app, items = suite(seed=1, quick=quick)
+    return "sim3", sim, app, items
+
+
+def robust(rows):
+    """What a mean hides: the bad tail, deals, walks, broken rules (per suite)."""
+    scores = sorted(r["score"] for r in rows)
+    if not scores:
+        return {}
+    k = max(0, int(0.1 * len(scores)) - 1)
+    return {
+        "median": round(statistics.median(scores), 4),
+        "p10": round(scores[k], 4),
+        "worst": round(scores[0], 4),
+        "deal_rate": round(sum(r["deal"] for r in rows) / len(rows), 4),
+        "zeros": sum(s == 0.0 for s in scores),
+        "no_deal_no_alt": sum(1 for r in rows if not r["deal"] and r.get("c_alt") is None),
+    }
+
+
 def play_one(agent, arena, case, log):
     if agent == "naive":
         from arena_kit.agents import NaiveAgent
@@ -94,6 +118,8 @@ def run_suite(name, sim, app, items, agent, log, parallel=8):
             "c_deal": r.get("c_deal"),
             "c_best": r.get("c_best"),
             "c_open": r.get("c_open"),
+            "c_alt": r.get("c_alt"),
+            "families": r.get("families"),
             "rounds": r.get("rounds"),
             "end_reason": r.get("end_reason"),
             "crash": err,
@@ -118,18 +144,23 @@ def count_events(log):
     return timeouts, fallbacks, blocks
 
 
-def main(note="", quick=False, suite="all", agent="jt"):
+def main(note="", quick=False, suite="all", agent="jt", allow_dirty=False):
     if agent == "old":
         from .old_agent import main as old_main
 
         return old_main(note=note, quick=quick, suite=suite)
-    log = EventLog(meta={"mode": "eval", "agent": agent, "suite": suite})
     commit, dirty = git_commit()
+    if dirty and not allow_dirty:
+        print("refusing to evaluate uncommitted code: commit first (or pass --allow-dirty for a scratch run)")
+        return 2
+    log = EventLog(meta={"mode": "eval", "agent": agent, "suite": suite})
     suites = []
     if suite in ("all", "kit"):
         suites.append(kit_suite())
     if suite in ("all", "sim2"):
         suites.append(sim2_suite(quick))
+    if suite in ("all", "sim3"):
+        suites.append(sim3_suite(quick))
     out = {}
     for name, sim, app, items in suites:
         rows = run_suite(name, sim, app, items, agent, log)
@@ -144,6 +175,7 @@ def main(note="", quick=False, suite="all", agent="jt"):
         "model": None if os.environ.get("JT_NO_LLM") else os.environ.get("LLM_MODEL", "claude-opus-5-5"),
         "effort": None if os.environ.get("JT_NO_LLM") else os.environ.get("LLM_EFFORT", "low"),
         "note": note,
+        "flags": flags.state(),
         "suites": {},
         "timeouts": timeouts,
         "llm_fallbacks": fallbacks,
@@ -157,6 +189,7 @@ def main(note="", quick=False, suite="all", agent="jt"):
             "n": len(rows),
             "deals": sum(r["deal"] for r in rows),
             "crashes": sum(bool(r["crash"]) for r in rows),
+            **robust(rows),
             "cases": rows,
         }
     HISTORY.parent.mkdir(exist_ok=True)
@@ -168,6 +201,20 @@ def main(note="", quick=False, suite="all", agent="jt"):
         if prev and name in prev["suites"] and prev["suites"][name]["mean"] is not None:
             delta = f"  (prev {prev['suites'][name]['mean']:.4f} @ {prev['commit']}, {s['mean'] - prev['suites'][name]['mean']:+.4f})"
         print(f"{name}: mean {s['mean']:.4f} over {s['n']} | deals {s['deals']} | crashes {s['crashes']}{delta}")
+        print(
+            f"   median {s.get('median')} | p10 {s.get('p10')} | worst {s.get('worst')} | deal rate "
+            f"{s.get('deal_rate')} | zeros {s.get('zeros')} | no deal without alternative {s.get('no_deal_no_alt')}"
+        )
+        if name == "sim3":
+            fam = {}
+            for r in s["cases"]:
+                for f in set((r.get("families") or {}).values()) or {"?"}:
+                    fam.setdefault(f, []).append(r["score"])
+            print(
+                "   by family: "
+                + ", ".join(f"{f} {statistics.mean(v):.3f} (n={len(v)})" for f, v in sorted(fam.items()))
+            )
+            continue
         for r in s["cases"]:
             print(f"   {r['case']:<22} {r['type'] or '':<15} {r['goal'] or '':<14} {r['score']:.3f} "
                   f"{'deal' if r['deal'] else 'NO DEAL'} r={r['rounds']} {r['crash'] or ''}")  # fmt: skip

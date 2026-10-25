@@ -11,6 +11,9 @@ def test_writer_paragraph_guard():
     assert not ok("Given our deadline we need an answer.")
     assert not ok("Your index idx:LCI-C@2026-06 rose.")
     assert not ok("Dear Sir, thanks. Kind regards")
+    assert not ok("We agree to your request and our proposal below reflects the discussion.")
+    assert not ok("We commit to placing all volume with your company under our proposal below.")
+    assert not ok("We will award the business if you move further on price.")
     assert not ok("short")
 
 

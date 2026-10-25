@@ -98,3 +98,23 @@ P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 
   alternative (stress P04 variant: frozen supplier at its quote, true full cost ~0.99 x quote, deal
   237 EUR above the alternative). 0.99 refused good deals (stress -0.03); 0.97 clean on 3 seeds.
   sim2 0.7722 -> 0.7694 (only P04g: thin deal 0.184 -> walk 0.092).
+
+## Lab `testes-consult-lab` (25 Oct, worktree ~/IdeaProjects/Janteiros-2.0-lab) - plan in docs/plano-lab.md
+- Merge of testes-consult (a20e28c) + agente-v2 (235821c). New: RESCUE (never give up without a valid
+  standing package; rescue before the ceiling sheet), MIRROR (send back its own cheaper alternative,
+  by C), sim3 (OOD suppliers, independent judge), tail metrics in jt eval, 4-5 bidder clock test.
+- GENERIC prior and ROBUST_FC measured worse / undecided offline: off unless JT_X_<NAME>=1.
+- Offline (no LLM): arena-sim 0.708, sim2 0.775 (p10 0.373), sim3 v2 0.566 (p10 0.157), = lab base.
+- Final rehearsal 1 on 9d7d6f6: 6/6 deals, 0 timeouts, 0 errors, 0 validator blocks.
+- Final rehearsal 2 on 4a5cbee: 6/6 deals, 0 timeouts, 0 errors. Stress 200 (seed 3): 0.802, no problems.
+- Real T1 (10208d8, no LLM): 0.7895 (main best 0.7946). P18 -0.067 from PROBE -> PROBE off (f118f3c);
+  P08 = main with identical sheets; P02 +0.083 (wording). Next: P18 alone to confirm.
+- Real P18 alone (ef5b11a, PROBE off, no LLM): 0.685 (T1 0.610, main best 0.677). Lab latest per case: mean 0.797.
+- Head-to-head on the real arena, final config, 10 cases in parallel, run back to back (25 Oct ~02:12):
+  lab 9c661bb 0.797 (10 deals, 0 timeouts) vs main 57683be 0.701 (9 deals). Lab >= main on every case:
+  P02 +0.100, P07 +0.593, P08 +0.188, P18 +0.075, the rest equal. main P07: its message came late in
+  round 3 (LLM writer ~6 s per call x 10 parallel cases), the supplier went final, main pushed again and
+  it walked (0.121); main's own events counted 0 timeouts (the arena's trace shows the buyer timeout).
+- Merged main 22f7c26 (release). Final candidate: tag final-lab. 115 tests, stress clean, rehearsal 6/6.
+- Real final-lab run (e48acc7): 0.7815; P08 -0.155 from main's hedged claim order -> HEDGE_CLAIMS off by default.
+- Real VERBAL_OFFERS run (c552dcc): 0.797, identical per case; 27 offer reads 2-5 s, 0 timeouts. final-lab -> here.

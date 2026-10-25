@@ -15,9 +15,11 @@ CASES = {
     for f in ("practice", "sandbox")
     for c in json.loads((HERE.parent / "data" / "cases" / f"{f}.json").read_text())
 }
-RESULTS = json.loads((HERE / "fixtures" / "results.json").read_text())
+_RESULTS_FILE = HERE / "fixtures" / "results.json"  # removed: recorded on another team's sessions
+RESULTS = json.loads(_RESULTS_FILE.read_text()) if _RESULTS_FILE.is_file() else []
 
 
+@pytest.mark.skipif(not RESULTS, reason="recorded results of the previous event removed from the repo")
 def test_cost_engine_reproduces_every_recorded_arena_deal():
     """C without the relationship charge (which needs the supplier's hidden full cost) matches the
     arena's breakdown component by component on all recorded real deals."""
