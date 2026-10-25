@@ -5,6 +5,8 @@ import importlib.util
 import json
 import pathlib
 
+import pytest
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
@@ -15,6 +17,9 @@ def _golden():
     return mod
 
 
+@pytest.mark.skipif(
+    not (ROOT / "data/sim2/paths.json").is_file(), reason="recorded openings of the previous event removed"
+)
 def test_switches_off_reproduce_baseline(monkeypatch):
     monkeypatch.setenv("JT_X_ALL", "0")
     want = json.loads((ROOT / "tests/fixtures/golden_round1.json").read_text())
