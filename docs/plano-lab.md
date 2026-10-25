@@ -210,3 +210,10 @@ Média 0.7815: 9 casos idênticos à rodada anterior; **P08 0.670 -> 0.515**. Me
 Correção: a reordenação virou a chave `HEDGE_CLAIMS`, desligada por padrão; o reconhecimento de
 "bought forward" como hedged continua. Primeira mensagem do P08 de novo idêntica à que fez 0.670
 (golden test). Tag `final-lab` movida para este commit.
+
+## 13. VERBAL_OFFERS na arena real (c552dcc, rodada por você ~11:35, configuração da final)
+
+Média **0.797**, os 10 casos idênticos à melhor rodada do laboratório (P08 de volta a 0.670: a
+correção HEDGE_CLAIMS confirmada). Leitura de ofertas escritas: 27 chamadas, 2-5 s, 0 timeouts,
+todas as ofertas lidas corretamente; nenhuma mais barata que as propostas formais nesses 10 casos,
+então nenhum resultado mudou. Tag `final-lab` movida para este commit.
