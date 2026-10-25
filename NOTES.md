@@ -109,3 +109,4 @@ P04 0.860 =, P07 0.714 -> 0.707. Latest score per case over the 10 hosted: mean 
 - Final rehearsal 2 on 4a5cbee: 6/6 deals, 0 timeouts, 0 errors. Stress 200 (seed 3): 0.802, no problems.
 - Real T1 (10208d8, no LLM): 0.7895 (main best 0.7946). P18 -0.067 from PROBE -> PROBE off (f118f3c);
   P08 = main with identical sheets; P02 +0.083 (wording). Next: P18 alone to confirm.
+- Real P18 alone (ef5b11a, PROBE off, no LLM): 0.685 (T1 0.610, main best 0.677). Lab latest per case: mean 0.797.
