@@ -8,7 +8,7 @@ import sys
 from collections import defaultdict
 
 SRC = pathlib.Path(
-    sys.argv[1] if len(sys.argv) > 1 else "~/IdeaProjects/ehl-final-procurecabana/logs/sessions"
+    sys.argv[1] if len(sys.argv) > 1 else sys.exit("usage: python scripts/extract_paths.py <folder of recorded session JSON files>")
 ).expanduser()
 out = defaultdict(lambda: {"sessions": []})
 for p in sorted(SRC.rglob("*.json")):

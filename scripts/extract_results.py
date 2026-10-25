@@ -1,11 +1,11 @@
-"""Recorded arena results (old project's raw sessions) -> tests/fixtures/results.json."""
+"""Recorded arena results (raw session JSON files) -> tests/fixtures/results.json."""
 
 import json
 import pathlib
 import sys
 
 SRC = pathlib.Path(
-    sys.argv[1] if len(sys.argv) > 1 else "~/IdeaProjects/ehl-final-procurecabana/logs/sessions"
+    sys.argv[1] if len(sys.argv) > 1 else sys.exit("usage: python scripts/extract_results.py <folder of recorded session JSON files>")
 ).expanduser()
 out = []
 for p in sorted(SRC.rglob("*.json")):
